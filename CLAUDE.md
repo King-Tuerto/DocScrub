@@ -171,6 +171,15 @@ DockScrub/
 
 ---
 
+## Known Gaps (Phase 1 — fix before ship)
+
+| Gap | Where | Fix required in |
+|-----|--------|----------------|
+| **Export format** | `backend/routes/export.py` + `backend/services/pipeline.py` | **Piece 10** |
+| Currently exports anonymized text as `.txt` regardless of input format. Spec requires same-format output: PDF in → PDF out (fitz write-back), DOCX in → DOCX save. The `/export` route serves file bytes from `output/{job_id}/output/`, which currently contains `.txt` files. Fix: write real PDF/DOCX in `pipeline.py` using fitz for PDFs and python-docx for DOCX. |
+
+---
+
 ## Success Criteria
 
 1. Non-technical user installs and runs on Windows in under 10 minutes
