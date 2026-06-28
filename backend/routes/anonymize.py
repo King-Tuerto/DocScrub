@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from backend.db.database import (
     get_db,
     get_file_records,
+    get_images_for_job,
     get_job,
     save_mappings,
     update_job_status,
@@ -20,6 +21,51 @@ from backend.db.database import (
 from backend.services.pipeline import run_pipeline
 
 router = APIRouter()
+
+
+def _strip_job_images(conn, job_id: str, output_dir: Path) -> None:
+    """
+    Remove images marked for removal from the anonymized output files.
+
+    Called after run_pipeline writes the format-preserving output.  If the user
+    never visited the image review screen the images table will be empty and this
+    is a no-op, which is correct: images are only stripped after explicit review.
+    """
+    from backend.services.file_writer import strip_images_from_pdf, strip_images_from_docx
+
+    images = get_images_for_job(conn, job_id)
+    if not images:
+        return
+
+    # Group marked-for-removal indices by filename
+    by_file: dict = {}
+    for img in images:
+        if img['marked_for_removal']:
+            fname = img['source_filename']
+            by_file.setdefault(fname, set()).add(img['image_index'])
+
+    for filename, indices in by_file.items():
+        output_path = output_dir / filename
+        if not output_path.exists():
+            continue
+
+        ext = Path(filename).suffix.lower()
+        tmp = output_path.with_suffix(output_path.suffix + '.strip_tmp')
+        try:
+            if ext == '.pdf':
+                strip_images_from_pdf(output_path, tmp, indices)
+            elif ext == '.docx':
+                strip_images_from_docx(output_path, tmp, indices)
+            else:
+                continue
+            if tmp.exists():
+                tmp.replace(output_path)
+        except Exception:
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except Exception:
+                    pass
 
 
 def _get_staged_paths(output_dir: Path, job_id: str, file_records: list) -> list:
@@ -60,6 +106,9 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None) -> dict:
             progress_cb=progress_cb,
             output_dir=output_job_dir,
         )
+
+        # Strip images that the user marked for removal (no-op if user skipped image review)
+        _strip_job_images(conn, job_id, output_job_dir)
 
         # Persist mapping
         mapping_entries = [

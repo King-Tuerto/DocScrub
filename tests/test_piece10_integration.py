@@ -334,3 +334,138 @@ class TestPIIInTableCells:
         assert len(tables) >= 1, "No tables in anonymized DOCX"
         # The table should still have 2 rows (header + data)
         assert len(tables[0].rows) == 2
+
+
+# ---------------------------------------------------------------------------
+# Image stripping — marked images removed from output files
+# ---------------------------------------------------------------------------
+
+class TestImageStripping:
+    """
+    Verify that images marked_for_removal=True are absent from the anonymized
+    output files, and that images marked_for_removal=False are preserved.
+
+    Uses pdf_with_raster_image_path (page.insert_image) rather than the
+    existing pdf_with_image_path fixture, which embeds form XObjects that are
+    invisible to page.get_images() and cannot be targeted by index.
+    """
+
+    def _upload_then_review(self, app_client, file_path, mime_type):
+        """Upload a file and call the images endpoint to populate the DB."""
+        with open(file_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (file_path.name, fh, mime_type)},
+            )
+        assert upload.status_code == 200
+        job_id = upload.json()["job_id"]
+        images_resp = app_client.get(f"/jobs/{job_id}/images")
+        assert images_resp.status_code == 200
+        return job_id, images_resp.json()
+
+    def test_pdf_raster_image_stripped_from_output(
+        self, app_client, pdf_with_raster_image_path, mock_llm_endpoint
+    ):
+        """All images marked_for_removal=True (default) are absent from output PDF."""
+        import fitz
+
+        job_id, images = self._upload_then_review(
+            app_client, pdf_with_raster_image_path, PDF_MIME
+        )
+        assert len(images) >= 1, "Fixture must contain at least one raster image"
+        # Default: all marked_for_removal=True → should be stripped
+
+        result = app_client.post(f"/jobs/{job_id}/anonymize")
+        assert result.status_code == 200
+
+        export = app_client.get(f"/jobs/{job_id}/export")
+        assert export.status_code == 200
+
+        out_doc = fitz.open(stream=export.content, filetype="pdf")
+        image_count = sum(len(page.get_images(full=True)) for page in out_doc)
+        out_doc.close()
+        assert image_count == 0, f"Expected 0 images in output PDF; got {image_count}"
+
+    def test_docx_image_stripped_from_output(
+        self, app_client, docx_with_image_path, mock_llm_endpoint
+    ):
+        """All images marked_for_removal=True are absent from word/media/ in output DOCX."""
+        import io
+        import zipfile
+
+        job_id, images = self._upload_then_review(
+            app_client, docx_with_image_path, DOCX_MIME
+        )
+        assert len(images) >= 1, "Fixture must contain at least one image"
+
+        result = app_client.post(f"/jobs/{job_id}/anonymize")
+        assert result.status_code == 200
+
+        export = app_client.get(f"/jobs/{job_id}/export")
+        assert export.status_code == 200
+
+        with zipfile.ZipFile(io.BytesIO(export.content)) as z:
+            media = [
+                n for n in z.namelist()
+                if n.startswith('word/media/') and not n.endswith('/')
+            ]
+        assert len(media) == 0, f"Expected empty word/media/; found {media}"
+
+    def test_pdf_image_kept_when_marked_for_removal_false(
+        self, app_client, pdf_with_raster_image_path, mock_llm_endpoint
+    ):
+        """Images explicitly un-marked (marked_for_removal=False) survive in output."""
+        import fitz
+
+        job_id, images = self._upload_then_review(
+            app_client, pdf_with_raster_image_path, PDF_MIME
+        )
+        assert len(images) >= 1
+
+        # Un-mark every image so they should be kept
+        for img in images:
+            patch = app_client.patch(
+                f"/jobs/{job_id}/images/{img['id']}",
+                json={"marked_for_removal": False},
+            )
+            assert patch.status_code == 200
+
+        result = app_client.post(f"/jobs/{job_id}/anonymize")
+        assert result.status_code == 200
+
+        export = app_client.get(f"/jobs/{job_id}/export")
+        assert export.status_code == 200
+
+        out_doc = fitz.open(stream=export.content, filetype="pdf")
+        image_count = sum(len(page.get_images(full=True)) for page in out_doc)
+        out_doc.close()
+        assert image_count >= 1, "Image should be preserved when marked_for_removal=False"
+
+    def test_no_stripping_when_image_review_skipped(
+        self, app_client, pdf_with_raster_image_path, mock_llm_endpoint
+    ):
+        """
+        If the user skips the image review step (never calls GET /images),
+        the images table stays empty and no stripping occurs.
+        """
+        import fitz
+
+        with open(pdf_with_raster_image_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (pdf_with_raster_image_path.name, fh, PDF_MIME)},
+            )
+        assert upload.status_code == 200
+        job_id = upload.json()["job_id"]
+        # Deliberately skip GET /jobs/{job_id}/images
+
+        result = app_client.post(f"/jobs/{job_id}/anonymize")
+        assert result.status_code == 200
+
+        export = app_client.get(f"/jobs/{job_id}/export")
+        assert export.status_code == 200
+
+        out_doc = fitz.open(stream=export.content, filetype="pdf")
+        image_count = sum(len(page.get_images(full=True)) for page in out_doc)
+        out_doc.close()
+        assert image_count >= 1, "Image should survive when image review was skipped"

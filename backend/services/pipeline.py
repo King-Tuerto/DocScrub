@@ -173,8 +173,9 @@ def run_pipeline(
             ],
         ))
 
-        # Write format-preserving output file when output_dir is provided
-        if output_dir and mapping.entries:
+        # Write format-preserving output file when output_dir is provided.
+        # Always write even if mapping is empty so image stripping can operate.
+        if output_dir:
             _write_output_file(src_path, doc.filename, Path(output_dir), mapping)
 
     result.mapping = mapping

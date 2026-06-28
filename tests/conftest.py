@@ -322,6 +322,44 @@ def pdf_with_image_path(tmp_path):
 
 
 @pytest.fixture
+def pdf_with_raster_image_path(tmp_path):
+    """
+    PDF with a true raster image inserted via page.insert_image().
+
+    Unlike pdf_with_image_path (which uses show_pdf_page / form XObjects),
+    this fixture produces a PDF whose images are visible to page.get_images(),
+    making it suitable for image-stripping tests.
+    """
+    import struct
+    import zlib
+    import fitz
+
+    def make_minimal_png():
+        def chunk(name, data):
+            c = name + data
+            crc = zlib.crc32(c) & 0xFFFFFFFF
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", crc)
+
+        png = b"\x89PNG\r\n\x1a\n"
+        ihdr_data = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        png += chunk(b"IHDR", ihdr_data)
+        raw = b"\x00\xff\x00\x00"  # filter byte + RGB pixel
+        png += chunk(b"IDAT", zlib.compress(raw))
+        png += chunk(b"IEND", b"")
+        return png
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((50, 50), "Document with embedded raster image.", fontsize=11)
+    page.insert_image(fitz.Rect(100, 100, 200, 200), stream=make_minimal_png())
+
+    path = tmp_path / "raster_image.pdf"
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
 def docx_with_image_path(tmp_path):
     """DOCX with an embedded PNG image."""
     import struct
