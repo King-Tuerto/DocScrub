@@ -94,6 +94,19 @@ def create_app(
     def health_check():
         return {"status": "ok"}
 
+    @app.get("/models")
+    def list_models_proxy():
+        """Proxy to LLM endpoint model list — avoids CORS issues from browser."""
+        from backend.services.llm_client import LLMClient, LLMUnreachableError
+        client = LLMClient(
+            endpoint=config.get("llm_endpoint", "http://localhost:11434"),
+            model=config.get("default_model", "llama3.1:8b"),
+        )
+        try:
+            return {"models": client.list_models()}
+        except LLMUnreachableError:
+            return {"models": [], "error": "LLM endpoint unreachable"}
+
     app.include_router(upload.router)
     app.include_router(anonymize.router)
     app.include_router(review.router)

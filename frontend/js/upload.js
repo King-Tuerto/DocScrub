@@ -1,2 +1,224 @@
-/* DocScrub — upload and drag-drop handling (Piece 9) */
+/**
+ * DocScrub — upload screen logic
+ *
+ * Owns: drag-drop zone, file picker, queued-file list, upload call,
+ *       image review screen (thumbnail grid + checkboxes).
+ */
 'use strict';
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let queuedFiles = [];   // File objects from the picker / drop
+
+// ---------------------------------------------------------------------------
+// File list rendering
+// ---------------------------------------------------------------------------
+
+const ALLOWED_EXTS = ['.pdf', '.docx'];
+
+function extOf(name) {
+  return name.slice(name.lastIndexOf('.')).toLowerCase();
+}
+
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function renderFileList() {
+  const ul = document.getElementById('file-list');
+  if (!ul) return;
+  ul.innerHTML = '';
+  queuedFiles.forEach((f, i) => {
+    const li = document.createElement('li');
+    li.className = 'file-item';
+    li.innerHTML = `
+      <span class="file-icon">${f.name.endsWith('.pdf') ? '📄' : '📝'}</span>
+      <span class="file-name">${f.name}</span>
+      <span class="file-size">${fmtBytes(f.size)}</span>
+      <button class="btn-remove" data-idx="${i}" title="Remove">✕</button>
+    `;
+    ul.appendChild(li);
+  });
+
+  // Remove buttons
+  ul.querySelectorAll('.btn-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      queuedFiles.splice(Number(btn.dataset.idx), 1);
+      renderFileList();
+      updateNextBtn();
+    });
+  });
+
+  updateNextBtn();
+}
+
+function updateNextBtn() {
+  const btn = document.getElementById('btn-next');
+  if (btn) btn.disabled = queuedFiles.length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Add files
+// ---------------------------------------------------------------------------
+
+function addFiles(fileList) {
+  const newFiles = Array.from(fileList).filter(f => {
+    const ext = extOf(f.name);
+    if (!ALLOWED_EXTS.includes(ext)) {
+      toast(`${f.name}: only PDF and DOCX are supported`, 'warn');
+      return false;
+    }
+    // Deduplicate by name
+    return !queuedFiles.some(q => q.name === f.name);
+  });
+  queuedFiles.push(...newFiles);
+  renderFileList();
+}
+
+// ---------------------------------------------------------------------------
+// Upload → backend
+// ---------------------------------------------------------------------------
+
+async function uploadFiles() {
+  const btn = document.getElementById('btn-next');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+
+  try {
+    const fd = new FormData();
+    queuedFiles.forEach(f => fd.append('files', f, f.name));
+
+    const data = await API.postForm('/upload', fd);
+    DS.jobId = data.job_id;
+    DS.files = data.files;
+
+    // Check for images (kick off extraction in background)
+    showScreen('screen-image-review');
+    await loadImages();
+  } catch (err) {
+    toast(`Upload failed: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Next →';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Image review screen
+// ---------------------------------------------------------------------------
+
+async function loadImages() {
+  const grid = document.getElementById('image-grid');
+  if (!grid) return;
+  grid.innerHTML = '<p class="loading-msg">Loading images…</p>';
+
+  try {
+    // Images endpoint will be wired in Piece 10; for now skip if none
+    const images = [];   // placeholder — endpoint not yet implemented
+    renderImageGrid(images);
+  } catch {
+    renderImageGrid([]);
+  }
+}
+
+function renderImageGrid(images) {
+  const grid = document.getElementById('image-grid');
+  if (!grid) return;
+
+  if (images.length === 0) {
+    grid.innerHTML = '<p class="no-images">No embedded images found in these documents.</p>';
+    // Auto-advance to processing since there's nothing to review
+    document.getElementById('btn-scrub').textContent = 'Proceed to Anonymize';
+    return;
+  }
+
+  grid.innerHTML = '';
+  images.forEach((img, i) => {
+    const item = document.createElement('div');
+    item.className = 'thumb-item';
+    item.setAttribute('role', 'listitem');
+    item.innerHTML = `
+      <label class="thumb-label">
+        <input type="checkbox" class="thumb-check" data-idx="${i}" checked />
+        <img src="data:image/png;base64,${img.b64}" alt="Image ${i + 1}"
+             class="thumb-img" />
+        <span class="thumb-caption">Page ${img.page ?? '?'}, img ${i + 1}</span>
+      </label>
+    `;
+    grid.appendChild(item);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Wire: select-all / deselect-all
+// ---------------------------------------------------------------------------
+
+function setAllChecked(checked) {
+  document.querySelectorAll('.thumb-check').forEach(cb => { cb.checked = checked; });
+}
+
+// ---------------------------------------------------------------------------
+// Start anonymisation
+// ---------------------------------------------------------------------------
+
+async function startScrub() {
+  showScreen('screen-processing');
+  document.getElementById('step-indicator').textContent = 'Starting…';
+  document.getElementById('progress-bars').innerHTML = '';
+
+  try {
+    await streamAnonymize(DS.jobId);
+  } catch (err) {
+    toast(`Anonymization failed: ${err.message}`, 'error');
+    showScreen('screen-upload');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const nextBtn   = document.getElementById('btn-next');
+  const scrubBtn  = document.getElementById('btn-scrub');
+  const selAll    = document.getElementById('select-all');
+  const deselAll  = document.getElementById('deselect-all');
+
+  // Drag-drop
+  if (dropZone) {
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      addFiles(e.dataTransfer.files);
+    });
+    dropZone.addEventListener('click', () => fileInput?.click());
+  }
+
+  // File picker
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      addFiles(fileInput.files);
+      fileInput.value = '';
+    });
+  }
+
+  // Next button
+  nextBtn?.addEventListener('click', uploadFiles);
+
+  // Scrub button
+  scrubBtn?.addEventListener('click', startScrub);
+
+  // Select-all toggles
+  selAll?.addEventListener('click', () => setAllChecked(true));
+  deselAll?.addEventListener('click', () => setAllChecked(false));
+});

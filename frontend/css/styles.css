@@ -1,81 +1,465 @@
-/* DocScrub — base styles */
+/* DocScrub — design system
+   Palette: neutral grays + blue accent (#2563eb) + semantic colours
+   No external fonts — system-ui stack for zero network requests         */
+
+/* =========================================================================
+   Reset & base
+   ========================================================================= */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-  font-family: system-ui, sans-serif;
-  background: #f5f5f5;
-  color: #222;
-  min-height: 100vh;
+:root {
+  --blue:     #2563eb;
+  --blue-lt:  #dbeafe;
+  --blue-dk:  #1d4ed8;
+  --green:    #16a34a;
+  --red:      #dc2626;
+  --amber:    #d97706;
+  --gray-50:  #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-700: #374151;
+  --gray-900: #111827;
+  --radius:   6px;
+  --shadow:   0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+  --shadow-md:0 4px 6px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.06);
 }
 
-.screen { max-width: 900px; margin: 0 auto; padding: 2rem; }
-.screen.active { display: block; }
+html { font-size: 16px; }
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+               Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--gray-100);
+  color: var(--gray-900);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+h1 { font-size: 1.75rem; font-weight: 700; }
+h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: .75rem; }
+h3 { font-size: 1rem;    font-weight: 600; margin-bottom: .5rem; }
+
+/* =========================================================================
+   Layout shell
+   ========================================================================= */
+.screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
 .screen[hidden] { display: none; }
 
-.app-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
-.app-header h1 { font-size: 2rem; }
-.subtitle { color: #555; flex: 1; }
+/* =========================================================================
+   App header (Screen 1)
+   ========================================================================= */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 2px solid var(--gray-200);
+}
+.app-header h1 { color: var(--blue); flex: 0 0 auto; }
+.subtitle { color: var(--gray-500); flex: 1; font-size: .9rem; }
 
-/* Drop zone */
+/* =========================================================================
+   Buttons
+   ========================================================================= */
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .55rem 1.25rem;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 500;
+  background: var(--blue);
+  color: #fff;
+  transition: background .15s, box-shadow .15s;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) { background: var(--blue-dk); box-shadow: var(--shadow); }
+button:disabled { background: var(--gray-300); color: var(--gray-500); cursor: not-allowed; }
+
+button.btn-secondary {
+  background: #fff;
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+}
+button.btn-secondary:hover:not(:disabled) { background: var(--gray-50); }
+
+button.btn-remove {
+  background: transparent;
+  color: var(--gray-500);
+  padding: .2rem .4rem;
+  font-size: .8rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+}
+button.btn-remove:hover { background: var(--gray-100); color: var(--red); }
+
+button.icon-btn {
+  background: transparent;
+  color: var(--gray-500);
+  padding: .3rem;
+  font-size: 1.3rem;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  justify-content: center;
+}
+button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
+
+.btn-edit {
+  background: transparent;
+  color: var(--blue);
+  border: 1px solid var(--blue-lt);
+  padding: .2rem .6rem;
+  font-size: .8rem;
+  border-radius: 4px;
+}
+.btn-edit:hover { background: var(--blue-lt); }
+
+.actions { display: flex; gap: .75rem; margin-top: 2rem; flex-wrap: wrap; }
+
+/* =========================================================================
+   Drop zone
+   ========================================================================= */
 .drop-zone {
-  border: 2px dashed #aaa;
-  border-radius: 8px;
-  padding: 3rem;
+  border: 2px dashed var(--gray-300);
+  border-radius: 10px;
+  padding: 3rem 2rem;
   text-align: center;
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color .2s, background .2s;
+  user-select: none;
 }
-.drop-zone.dragover { border-color: #0066cc; background: #eef5ff; }
-.file-label { color: #0066cc; cursor: pointer; text-decoration: underline; }
-
-/* File list */
-.file-list { list-style: none; margin: 1rem 0; }
-.file-list li { padding: 0.5rem; border-bottom: 1px solid #eee; display: flex; gap: 1rem; }
-
-/* Buttons */
-button {
-  padding: 0.6rem 1.4rem;
-  border: none;
-  border-radius: 6px;
+.drop-zone:hover,
+.drop-zone.dragover { border-color: var(--blue); background: var(--blue-lt); }
+.drop-zone p { color: var(--gray-500); margin: .3rem 0; }
+.file-label {
+  color: var(--blue);
   cursor: pointer;
-  font-size: 1rem;
-  background: #0066cc;
-  color: #fff;
+  font-weight: 500;
+  text-decoration: underline;
 }
-button:disabled { background: #ccc; cursor: not-allowed; }
-button.icon-btn { background: transparent; color: #555; font-size: 1.4rem; padding: 0.2rem; }
-.actions { margin-top: 2rem; display: flex; gap: 1rem; }
 
-/* Image grid */
-.image-grid { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
-.image-grid .thumb { border: 1px solid #ddd; border-radius: 4px; padding: 0.5rem; }
+/* =========================================================================
+   File list
+   ========================================================================= */
+.file-list {
+  list-style: none;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .6rem 1rem;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.file-icon { font-size: 1.1rem; }
+.file-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-size { color: var(--gray-500); font-size: .82rem; flex: 0 0 auto; }
 
-/* Progress */
-.progress-area { background: #fff; padding: 2rem; border-radius: 8px; }
-.step-indicator { font-weight: bold; margin-bottom: 1rem; color: #0066cc; }
+/* =========================================================================
+   Image review
+   ========================================================================= */
+.image-review-controls { display: flex; gap: .5rem; margin-bottom: 1rem; }
+.image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  min-height: 80px;
+}
+.thumb-item {
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--shadow);
+  transition: border-color .15s;
+}
+.thumb-label { display: flex; flex-direction: column; align-items: center; padding: .5rem; gap: .3rem; cursor: pointer; }
+.thumb-img { width: 120px; height: 120px; object-fit: contain; border-radius: 4px; }
+.thumb-caption { font-size: .75rem; color: var(--gray-500); }
+.thumb-check { width: 1rem; height: 1rem; accent-color: var(--red); }
+.no-images { color: var(--gray-500); padding: 1rem 0; }
+.loading-msg { color: var(--gray-500); padding: 1rem 0; }
 
-/* Review */
-.review-area { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.review-area pre { white-space: pre-wrap; background: #fff; padding: 1rem; border-radius: 4px; border: 1px solid #ddd; height: 400px; overflow-y: auto; }
+/* =========================================================================
+   Processing / progress
+   ========================================================================= */
+#screen-processing { text-align: center; }
+#screen-processing h2 { margin-bottom: 1.5rem; }
+.progress-area {
+  background: #fff;
+  border-radius: 10px;
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: left;
+}
+.step-indicator {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--blue);
+  margin-bottom: 1rem;
+  padding-bottom: .75rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+.progress-bars { display: flex; flex-direction: column; gap: .4rem; max-height: 300px; overflow-y: auto; }
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: .88rem;
+  color: var(--gray-700);
+  padding: .3rem 0;
+}
+.progress-step.done { color: var(--green); }
+.step-dot { font-size: .85rem; min-width: 1rem; text-align: center; }
 
-/* Mapping panel */
-.mapping-panel { background: #fff; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
-.mapping-table table { width: 100%; border-collapse: collapse; }
-.mapping-table th, .mapping-table td { padding: 0.4rem; border: 1px solid #eee; }
+/* =========================================================================
+   Review screen — side-by-side diff
+   ========================================================================= */
+.file-tabs { display: flex; gap: .25rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.tab-btn {
+  background: #fff;
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+  padding: .4rem 1rem;
+  font-size: .85rem;
+  border-radius: 20px;
+}
+.tab-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
 
-/* Modal */
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.review-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+@media (max-width: 640px) { .review-area { grid-template-columns: 1fr; } }
+
+.review-original,
+.review-anonymized {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.review-original h3,
+.review-anonymized h3 {
+  padding: .6rem 1rem;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  font-size: .85rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--gray-500);
+  font-weight: 600;
+}
+.review-original pre,
+.review-anonymized pre {
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Courier New', monospace;
+  font-size: .82rem;
+  line-height: 1.6;
+  height: 380px;
+  overflow-y: auto;
+}
+.pii-mark {
+  border-radius: 3px;
+  padding: .1em .25em;
+  cursor: default;
+  font-weight: 500;
+}
+
+/* =========================================================================
+   Mapping table
+   ========================================================================= */
+.mapping-panel {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-top: 1rem;
+  overflow: hidden;
+}
+.mapping-panel summary {
+  padding: .75rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  user-select: none;
+  list-style: none;
+}
+.mapping-panel summary::-webkit-details-marker { display: none; }
+.mapping-panel summary::before { content: '▶  '; font-size: .7rem; }
+.mapping-panel[open] summary::before { content: '▼  '; }
+.mapping-table { padding: .75rem 1rem; overflow-x: auto; }
+
+.map-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+.map-table th {
+  text-align: left;
+  padding: .5rem .75rem;
+  background: var(--gray-50);
+  border-bottom: 2px solid var(--gray-200);
+  font-weight: 600;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+.map-table td {
+  padding: .5rem .75rem;
+  border-bottom: 1px solid var(--gray-100);
+  vertical-align: middle;
+}
+.map-table tr:hover td { background: var(--gray-50); }
+.map-table code {
+  font-size: .8rem;
+  color: var(--blue);
+  background: var(--blue-lt);
+  padding: .1rem .4rem;
+  border-radius: 4px;
+}
+.pii-badge {
+  display: inline-block;
+  padding: .15rem .5rem;
+  border-radius: 20px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.orig-input {
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  padding: .25rem .5rem;
+  font-size: .85rem;
+  width: 100%;
+}
+.empty-msg { color: var(--gray-500); padding: .5rem 0; }
+
+/* =========================================================================
+   Export screen
+   ========================================================================= */
+.job-summary {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+.job-summary p { font-size: .9rem; color: var(--gray-700); }
+.download-buttons { display: flex; gap: .75rem; flex-wrap: wrap; }
+
+/* =========================================================================
+   Re-identify screen
+   ========================================================================= */
+#reidentify .drop-zone { margin-bottom: .75rem; }
+
+/* =========================================================================
+   Settings modal
+   ========================================================================= */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
 .modal[hidden] { display: none; }
-.modal-content { background: #fff; padding: 2rem; border-radius: 8px; min-width: 400px; }
-.modal-content label { display: block; margin-top: 1rem; font-weight: bold; }
-.modal-content input, .modal-content select { width: 100%; padding: 0.5rem; margin-top: 0.3rem; border: 1px solid #ccc; border-radius: 4px; }
-.modal-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+.modal-content {
+  background: #fff;
+  border-radius: 10px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-md);
+}
+.modal-content h2 { margin-bottom: 1.25rem; }
+.modal-content label {
+  display: block;
+  font-weight: 600;
+  font-size: .88rem;
+  color: var(--gray-700);
+  margin-bottom: .3rem;
+  margin-top: 1rem;
+}
+.modal-content input[type="text"],
+.modal-content select {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  transition: border-color .15s;
+}
+.modal-content input[type="text"]:focus,
+.modal-content select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-lt);
+}
+.modal-actions { display: flex; gap: .75rem; margin-top: 1.5rem; justify-content: flex-end; }
 
-/* Job summary */
-.job-summary { background: #fff; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
-.job-summary p { margin: 0.4rem 0; }
-.download-buttons { display: flex; gap: 1rem; flex-wrap: wrap; }
+/* =========================================================================
+   Toast notifications
+   ========================================================================= */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: .75rem 1.25rem;
+  border-radius: var(--radius);
+  font-size: .88rem;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  animation: slide-in .25s ease;
+  max-width: 340px;
+}
+.toast-info    { background: var(--blue); }
+.toast-success { background: var(--green); }
+.toast-warn    { background: var(--amber); }
+.toast-error   { background: var(--red); }
 
-/* Re-identify */
-#reidentify .drop-zone { margin-bottom: 1rem; }
+@keyframes slide-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* =========================================================================
+   Accessibility utility
+   ========================================================================= */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
