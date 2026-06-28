@@ -50,11 +50,15 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None) -> dict:
 
         update_job_status(conn, job_id, "processing")
 
+        # Output directory for format-preserving files
+        output_job_dir = output_dir / job_id / "output"
+
         pipeline_result = run_pipeline(
             job_id=job_id,
             file_paths=file_paths,
             config=config,
             progress_cb=progress_cb,
+            output_dir=output_job_dir,
         )
 
         # Persist mapping
@@ -69,24 +73,23 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None) -> dict:
         ]
         save_mappings(conn, job_id, mapping_entries)
 
-        # Save anonymized output files
-        output_job_dir = output_dir / job_id / "output"
-        output_job_dir.mkdir(parents=True, exist_ok=True)
-        for fr in pipeline_result.files:
-            out_path = output_job_dir / fr.filename
-            out_path.write_text(fr.anonymized_text, encoding="utf-8")
-
-        update_job_status(conn, job_id, "complete")
+        # Determine job status
+        has_warnings = bool(pipeline_result.warnings)
+        status = "complete_with_warnings" if has_warnings else "complete"
+        update_job_status(conn, job_id, status)
 
         return {
             "job_id": job_id,
-            "status": "complete",
-            "warning": pipeline_result.warning,
+            "status": status,
+            "warnings": pipeline_result.warnings,
             "files": [
                 {
                     "filename": fr.filename,
                     "anonymized_text": fr.anonymized_text,
                     "positions": fr.positions,
+                    "file_type": fr.file_type,
+                    "is_scanned": fr.is_scanned,
+                    "is_password_protected": fr.is_password_protected,
                 }
                 for fr in pipeline_result.files
             ],

@@ -116,9 +116,8 @@ async function loadImages() {
   grid.innerHTML = '<p class="loading-msg">Loading images…</p>';
 
   try {
-    // Images endpoint will be wired in Piece 10; for now skip if none
-    const images = [];   // placeholder — endpoint not yet implemented
-    renderImageGrid(images);
+    const images = await API.get(`/jobs/${DS.jobId}/images`);
+    renderImageGrid(Array.isArray(images) ? images : []);
   } catch {
     renderImageGrid([]);
   }

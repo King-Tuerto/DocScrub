@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from backend.db.database import init_db
-from backend.routes import upload, anonymize, review, export, reidentify
+from backend.routes import upload, anonymize, review, export, reidentify, images
 
 # ---------------------------------------------------------------------------
 # Project root (absolute, resolved at import time)
@@ -112,6 +112,7 @@ def create_app(
     app.include_router(review.router)
     app.include_router(export.router)
     app.include_router(reidentify.router)
+    app.include_router(images.router)
 
     # ---------------------------------------------------------------------------
     # Static frontend (must be last — catches-all remaining paths)
