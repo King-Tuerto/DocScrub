@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocScrub — Document Anonymizer</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+
+<!-- ===================================================================
+     SCREEN 1 — Home / Upload
+     =================================================================== -->
+<section id="screen-upload" class="screen active">
+  <header class="app-header">
+    <h1>DocScrub</h1>
+    <p class="subtitle">Strip PII from documents before sharing with cloud AI.</p>
+    <button id="settings-btn" class="icon-btn" title="Settings" data-action="settings">⚙</button>
+  </header>
+
+  <div id="drop-zone" class="drop-zone" role="region" aria-label="File drop zone">
+    <p>Drag &amp; drop PDF or Word files here</p>
+    <p>or <label for="file-input" class="file-label">browse files</label></p>
+    <input id="file-input" type="file" accept=".pdf,.docx" multiple hidden />
+  </div>
+
+  <ul id="file-list" class="file-list" aria-label="Queued files"></ul>
+
+  <div class="actions">
+    <button id="btn-next" data-action="next" disabled>Next →</button>
+  </div>
+</section>
+
+<!-- ===================================================================
+     SETTINGS MODAL
+     =================================================================== -->
+<div id="settings-modal" class="modal" hidden>
+  <div class="modal-content">
+    <h2>Settings</h2>
+    <label for="llm-endpoint">LLM Endpoint</label>
+    <input id="llm-endpoint" name="llm_endpoint" type="text"
+           value="http://localhost:11434"
+           placeholder="http://localhost:11434" />
+
+    <label for="model-select">Model</label>
+    <select id="model-select" name="model"></select>
+
+    <div class="modal-actions">
+      <button id="btn-settings-save">Save</button>
+      <button id="btn-settings-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================================================
+     SCREEN 2 — Image Review
+     =================================================================== -->
+<section id="screen-image-review" class="screen" hidden>
+  <h2>Review Embedded Images</h2>
+  <p>Checked images will be removed from the anonymized output.
+     Uncheck charts and diagrams you want to keep.</p>
+
+  <div class="image-review-controls">
+    <button id="select-all" data-action="select-all">Select All for Removal</button>
+    <button id="deselect-all" data-action="deselect-all">Deselect All</button>
+  </div>
+
+  <div id="image-grid" class="image-grid thumbnail-grid" role="list"
+       aria-label="Extracted images"></div>
+
+  <div class="actions">
+    <button id="btn-scrub" data-action="scrub">Scrub Documents</button>
+  </div>
+</section>
+
+<!-- ===================================================================
+     SCREEN 3 — Processing
+     =================================================================== -->
+<section id="screen-processing" class="screen" hidden>
+  <h2>Anonymizing…</h2>
+
+  <div id="progress-area" class="progress-area">
+    <div id="step-indicator" class="step-indicator current-step">Initialising…</div>
+    <div id="progress-bars" class="progress-bars"></div>
+  </div>
+</section>
+
+<!-- ===================================================================
+     SCREEN 4 — Review
+     =================================================================== -->
+<section id="screen-review" class="screen review" hidden>
+  <h2>Review Results</h2>
+
+  <div id="review-area" class="review-area diff-view side-by-side">
+    <div class="review-original">
+      <h3>Original</h3>
+      <pre id="text-original"></pre>
+    </div>
+    <div class="review-anonymized">
+      <h3>Anonymized</h3>
+      <pre id="text-anonymized"></pre>
+    </div>
+  </div>
+
+  <details id="mapping-panel" class="mapping-panel">
+    <summary>Mapping Table</summary>
+    <div id="mapping-table" class="mapping-table"></div>
+    <button id="btn-add-manual">+ Add Manual PII</button>
+  </details>
+
+  <div class="actions">
+    <button id="btn-export" data-action="export">Export →</button>
+    <button id="btn-rerun">Re-run with different model</button>
+  </div>
+</section>
+
+<!-- ===================================================================
+     SCREEN 5 — Export
+     =================================================================== -->
+<section id="screen-export" class="screen" hidden>
+  <h2>Export</h2>
+
+  <div id="job-summary" class="job-summary summary">
+    <p id="summary-files"></p>
+    <p id="summary-pii"></p>
+    <p id="summary-model"></p>
+    <p id="summary-timestamp"></p>
+  </div>
+
+  <div class="download-buttons">
+    <button data-action="download-files">⬇ Download Anonymized Files</button>
+    <button data-action="download-mapping">⬇ Download Mapping File (JSON)</button>
+  </div>
+
+  <div class="actions">
+    <button id="btn-new-job" data-action="new-job">New Job</button>
+  </div>
+</section>
+
+<!-- ===================================================================
+     SCREEN 6 — Re-identify
+     =================================================================== -->
+<section id="reidentify" class="screen re-identify" hidden>
+  <h2>Re-identify Documents</h2>
+  <p>Upload your anonymized files and the mapping JSON to restore original content.</p>
+
+  <div id="reid-drop-zone" class="drop-zone">
+    <p>Drop anonymized files here</p>
+  </div>
+
+  <div id="reid-mapping-drop" class="drop-zone">
+    <p>Drop mapping JSON here (or select from history below)</p>
+  </div>
+
+  <div class="actions">
+    <button id="btn-restore" data-action="restore">Restore</button>
+  </div>
+</section>
+
+<!-- ===================================================================
+     Scripts (local only — no CDN)
+     =================================================================== -->
+<script src="/js/app.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/review.js"></script>
+<script src="/js/export.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "llm_endpoint": "http://localhost:11434",
+  "default_model": "llama3.1:8b",
+  "output_directory": "./output",
+  "db_path": "./docscrub.db",
+  "image_review_default": "remove",
+  "custom_regex_patterns": []
+}
