@@ -115,12 +115,22 @@ async function doReidentify() {
   if (!reidMapping) { toast('Drop a mapping JSON file first', 'warn'); return; }
   if (!DS.jobId)    { toast('No active job — paste the Job ID', 'warn'); return; }
 
+  // Convert list format [{placeholder, original, ...}] → {placeholder: original} dict
+  const mapping = {};
+  const entries = Array.isArray(reidMapping) ? reidMapping : [reidMapping];
+  entries.forEach(e => { if (e.placeholder && e.original) mapping[e.placeholder] = e.original; });
+
+  if (!Object.keys(mapping).length) {
+    toast('Mapping file has no valid entries', 'warn');
+    return;
+  }
+
   try {
-    const result = await API.post('/reidentify', { job_id: DS.jobId, mapping: reidMapping });
-    result.files?.forEach(f => {
-      const blob = new Blob([f.restored_text], { type: 'text/plain' });
-      triggerDownload(blob, `restored_${f.filename}.txt`);
-    });
+    const { blob, headers } = await API.postBlob('/reidentify', { job_id: DS.jobId, mapping });
+    const cd = headers.get('content-disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `restored_${DS.jobId}.bin`;
+    triggerDownload(blob, filename);
     toast('Documents restored — download started', 'success');
   } catch (err) {
     toast(`Re-identify failed: ${err.message}`, 'error');
@@ -143,7 +153,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', downloadFiles);
   });
   document.querySelectorAll('[data-action="download-mapping"]').forEach(btn => {
-    btn.addEventListener('btn.click', downloadMapping);  // safe duplicate listener
     btn.addEventListener('click', downloadMapping);
   });
 
@@ -165,8 +174,9 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.onload = e => {
       try {
         reidMapping = JSON.parse(e.target.result);
+        const count = Array.isArray(reidMapping) ? reidMapping.length : Object.keys(reidMapping).length;
         const zone = document.getElementById('reid-mapping-drop');
-        if (zone) zone.querySelector('p').textContent = `Mapping loaded: ${Object.keys(reidMapping).length} entries`;
+        if (zone) zone.querySelector('p').textContent = `Mapping loaded: ${count} entries`;
         toast('Mapping file loaded', 'success');
       } catch {
         toast('Invalid JSON mapping file', 'error');

@@ -1,9 +1,11 @@
 """
-Review route — GET  /jobs/{job_id}/review
-              GET  /jobs/{job_id}/mapping
+Review route — GET   /jobs/{job_id}/review
+              GET   /jobs/{job_id}/mapping
+              POST  /jobs/{job_id}/mapping
               PATCH /jobs/{job_id}/mapping/{placeholder}
 """
 
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -24,6 +26,11 @@ router = APIRouter()
 
 class MappingPatch(BaseModel):
     original: str
+
+
+class MappingCreate(BaseModel):
+    text: str
+    pii_type: str
 
 
 @router.get("/jobs/{job_id}/review")
@@ -120,6 +127,55 @@ def get_mapping(job_id: str, request: Request):
         if job is None:
             raise HTTPException(status_code=404, detail=f"Job {job_id!r} not found")
         return get_mappings(conn, job_id)
+    finally:
+        conn.close()
+
+
+@router.post("/jobs/{job_id}/mapping")
+def add_mapping_entry(job_id: str, body: MappingCreate, request: Request):
+    """Add a manually-flagged PII entry to the job mapping."""
+    db_path: Path = request.app.state.db_path
+    conn = get_db(db_path)
+    try:
+        job = get_job(conn, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail=f"Job {job_id!r} not found")
+
+        pii_type = body.pii_type.strip().upper()
+        if not body.text.strip():
+            raise HTTPException(status_code=422, detail="text must not be empty")
+
+        current = get_mappings(conn, job_id)
+
+        # Check for duplicate text — return existing entry without creating a new one
+        for entry in current:
+            if entry["original"] == body.text.strip():
+                return entry
+
+        # Find highest existing N for this type to assign the next sequential placeholder
+        max_n = 0
+        pattern = re.compile(rf'^\[{re.escape(pii_type)}_(\d+)\]$')
+        for entry in current:
+            m = pattern.match(entry["placeholder"])
+            if m:
+                max_n = max(max_n, int(m.group(1)))
+
+        placeholder = f"[{pii_type}_{max_n + 1}]"
+        new_entry = {
+            "original": body.text.strip(),
+            "placeholder": placeholder,
+            "pii_type": pii_type,
+            "source": "manual",
+        }
+        current.append(new_entry)
+        save_mappings(conn, job_id, current)
+
+        # Return the persisted entry (with id field from DB)
+        saved = get_mappings(conn, job_id)
+        for entry in saved:
+            if entry["placeholder"] == placeholder:
+                return entry
+        return new_entry
     finally:
         conn.close()
 

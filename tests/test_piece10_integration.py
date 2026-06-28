@@ -44,7 +44,7 @@ DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.docu
 class TestScannedPDFGuard:
     def test_scanned_pdf_does_not_crash(self, app_client, scanned_pdf_path, mock_llm_endpoint):
         job_id, result = anonymize_file(app_client, scanned_pdf_path, PDF_MIME)
-        assert result.status_code in (200, 422)
+        assert result.status_code == 200
 
     def test_scanned_pdf_returns_warning(self, app_client, scanned_pdf_path, mock_llm_endpoint):
         job_id, result = anonymize_file(app_client, scanned_pdf_path, PDF_MIME)
@@ -75,7 +75,7 @@ class TestScannedPDFGuard:
 class TestPasswordProtectedGuard:
     def test_password_pdf_does_not_crash(self, app_client, password_protected_pdf_path, mock_llm_endpoint):
         job_id, result = anonymize_file(app_client, password_protected_pdf_path, PDF_MIME)
-        assert result.status_code in (200, 422)
+        assert result.status_code == 200
 
     def test_password_pdf_returns_warning(self, app_client, password_protected_pdf_path, mock_llm_endpoint):
         job_id, result = anonymize_file(app_client, password_protected_pdf_path, PDF_MIME)
@@ -469,3 +469,114 @@ class TestImageStripping:
         image_count = sum(len(page.get_images(full=True)) for page in out_doc)
         out_doc.close()
         assert image_count >= 1, "Image should survive when image review was skipped"
+
+
+# ---------------------------------------------------------------------------
+# Manual PII mapping — POST /jobs/{job_id}/mapping
+# ---------------------------------------------------------------------------
+
+class TestManualPIIMapping:
+    """POST /jobs/{job_id}/mapping adds an entry without re-running the pipeline."""
+
+    def _upload_and_anonymize(self, app_client, pdf_path, mock_llm_endpoint):
+        with open(pdf_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (pdf_path.name, fh, "application/pdf")},
+            )
+        job_id = upload.json()["job_id"]
+        app_client.post(f"/jobs/{job_id}/anonymize")
+        return job_id
+
+    def test_add_manual_entry_returns_200(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        job_id = self._upload_and_anonymize(app_client, sample_pdf_path, mock_llm_endpoint)
+        resp = app_client.post(
+            f"/jobs/{job_id}/mapping",
+            json={"text": "Secret Corp", "pii_type": "ORG"},
+        )
+        assert resp.status_code == 200
+
+    def test_add_manual_entry_persisted_in_mapping(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        job_id = self._upload_and_anonymize(app_client, sample_pdf_path, mock_llm_endpoint)
+        app_client.post(
+            f"/jobs/{job_id}/mapping",
+            json={"text": "Hidden Ltd", "pii_type": "ORG"},
+        )
+        mappings = app_client.get(f"/jobs/{job_id}/mapping").json()
+        originals = [m["original"] for m in mappings]
+        assert "Hidden Ltd" in originals
+
+    def test_add_manual_entry_placeholder_format(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        job_id = self._upload_and_anonymize(app_client, sample_pdf_path, mock_llm_endpoint)
+        resp = app_client.post(
+            f"/jobs/{job_id}/mapping",
+            json={"text": "Dr. No", "pii_type": "PERSON"},
+        )
+        entry = resp.json()
+        assert entry["placeholder"].startswith("[PERSON_")
+        assert entry["placeholder"].endswith("]")
+
+    def test_add_manual_entry_source_is_manual(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        job_id = self._upload_and_anonymize(app_client, sample_pdf_path, mock_llm_endpoint)
+        resp = app_client.post(
+            f"/jobs/{job_id}/mapping",
+            json={"text": "manual@test.com", "pii_type": "EMAIL"},
+        )
+        assert resp.json()["source"] == "manual"
+
+    def test_add_manual_entry_deduplicates_same_text(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        """Adding the same text twice returns the existing entry, not a duplicate."""
+        job_id = self._upload_and_anonymize(app_client, sample_pdf_path, mock_llm_endpoint)
+        app_client.post(f"/jobs/{job_id}/mapping", json={"text": "Dupe Inc", "pii_type": "ORG"})
+        app_client.post(f"/jobs/{job_id}/mapping", json={"text": "Dupe Inc", "pii_type": "ORG"})
+        mappings = app_client.get(f"/jobs/{job_id}/mapping").json()
+        assert sum(1 for m in mappings if m["original"] == "Dupe Inc") == 1
+
+    def test_add_manual_entry_404_for_unknown_job(self, app_client):
+        resp = app_client.post(
+            "/jobs/nonexistent-job/mapping",
+            json={"text": "Test", "pii_type": "PERSON"},
+        )
+        assert resp.status_code == 404
+
+    def test_add_manual_entry_sequential_placeholder(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        """Second manual PHONE entry gets a higher N than the first."""
+        job_id = self._upload_and_anonymize(app_client, sample_pdf_path, mock_llm_endpoint)
+        r1 = app_client.post(f"/jobs/{job_id}/mapping", json={"text": "111-111-1111", "pii_type": "PHONE"})
+        r2 = app_client.post(f"/jobs/{job_id}/mapping", json={"text": "222-222-2222", "pii_type": "PHONE"})
+        n1 = int(r1.json()["placeholder"].split("_")[1].rstrip("]"))
+        n2 = int(r2.json()["placeholder"].split("_")[1].rstrip("]"))
+        assert n2 > n1
+
+
+# ---------------------------------------------------------------------------
+# Anonymize model/endpoint override — A5
+# ---------------------------------------------------------------------------
+
+class TestAnonymizeModelOverride:
+    """POST /jobs/{job_id}/anonymize accepts optional model and llm_endpoint overrides."""
+
+    def test_model_override_accepted(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        """Passing a model override in the body must not cause a 4xx/5xx."""
+        with open(sample_pdf_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (sample_pdf_path.name, fh, "application/pdf")},
+            )
+        job_id = upload.json()["job_id"]
+        resp = app_client.post(
+            f"/jobs/{job_id}/anonymize",
+            json={"model": "mistral:7b", "llm_endpoint": "http://localhost:11434"},
+        )
+        assert resp.status_code == 200
+
+    def test_no_body_still_works(self, app_client, sample_pdf_path, mock_llm_endpoint):
+        """Omitting the body entirely (legacy call) must still succeed."""
+        with open(sample_pdf_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (sample_pdf_path.name, fh, "application/pdf")},
+            )
+        job_id = upload.json()["job_id"]
+        resp = app_client.post(f"/jobs/{job_id}/anonymize")
+        assert resp.status_code == 200

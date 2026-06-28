@@ -53,7 +53,7 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
             ext = Path(upload.filename or "unknown").suffix.lower()
             file_type = "pdf" if ext == ".pdf" else "docx"
 
-            dest = staging_dir / (upload.filename or f"file{ext}")
+            dest = staging_dir / Path(upload.filename or f"file{ext}").name
             content = await upload.read()
             dest.write_bytes(content)
 

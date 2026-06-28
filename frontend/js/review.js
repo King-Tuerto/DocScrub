@@ -23,7 +23,11 @@ const STEP_LABELS = {
 async function streamAnonymize(jobId) {
   return new Promise((resolve, reject) => {
     // EventSource only does GET; use fetch + ReadableStream for POST+SSE
-    fetch(`/jobs/${jobId}/anonymize/stream`, { method: 'POST' })
+    fetch(`/jobs/${jobId}/anonymize/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: DS.config.model, llm_endpoint: DS.config.llm_endpoint }),
+    })
       .then(resp => {
         if (!resp.ok) return reject(new Error(`${resp.status}`));
 
@@ -262,11 +266,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function addManualPII() {
+async function addManualPII() {
+  if (!DS.jobId) { toast('No active job', 'warn'); return; }
   const val = window.prompt('Enter text to redact:');
   if (!val?.trim()) return;
   const type = window.prompt('PII type (PERSON / EMAIL / PHONE / OTHER):', 'OTHER') || 'OTHER';
-  toast(`Manual PII flagging will apply in next run — noted as ${type.toUpperCase()}`, 'info');
+  try {
+    const entry = await API.post(`/jobs/${DS.jobId}/mapping`, {
+      text: val.trim(),
+      pii_type: type.trim().toUpperCase(),
+    });
+    DS.mapping.push({
+      id: entry.id,
+      original: entry.original,
+      placeholder: entry.placeholder,
+      pii_type: entry.pii_type,
+      source: entry.source,
+    });
+    renderMappingTable(DS.mapping);
+    toast(`Added ${entry.placeholder} for "${entry.original}"`, 'success');
+  } catch (err) {
+    toast(`Failed to add PII: ${err.message}`, 'error');
+  }
 }
 
 // Expose for upload.js

@@ -5,10 +5,11 @@ Anonymize route — POST /jobs/{job_id}/anonymize
 
 import json
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from backend.db.database import (
     get_db,
@@ -21,6 +22,11 @@ from backend.db.database import (
 from backend.services.pipeline import run_pipeline
 
 router = APIRouter()
+
+
+class AnonymizeBody(BaseModel):
+    model: Optional[str] = None
+    llm_endpoint: Optional[str] = None
 
 
 def _strip_job_images(conn, job_id: str, output_dir: Path) -> None:
@@ -79,9 +85,14 @@ def _get_staged_paths(output_dir: Path, job_id: str, file_records: list) -> list
     return paths
 
 
-def _run_and_store(job_id: str, request: Request, progress_cb=None) -> dict:
+def _run_and_store(job_id: str, request: Request, progress_cb=None, overrides: Optional[dict] = None) -> dict:
     """Run the pipeline and persist results; return response payload."""
-    config: dict = request.app.state.config
+    config: dict = dict(request.app.state.config)
+    if overrides:
+        if overrides.get("model"):
+            config["default_model"] = overrides["model"]
+        if overrides.get("llm_endpoint"):
+            config["llm_endpoint"] = overrides["llm_endpoint"]
     db_path: Path = request.app.state.db_path
     output_dir = Path(config.get("output_directory", "./output"))
 
@@ -153,17 +164,19 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None) -> dict:
 
 
 @router.post("/jobs/{job_id}/anonymize")
-def anonymize_job(job_id: str, request: Request):
+def anonymize_job(job_id: str, request: Request, body: Optional[AnonymizeBody] = None):
     """Run the anonymization pipeline synchronously."""
-    return _run_and_store(job_id, request)
+    return _run_and_store(job_id, request, overrides=body.model_dump() if body else None)
 
 
 @router.post("/jobs/{job_id}/anonymize/stream")
-def anonymize_job_stream(job_id: str, request: Request):
+def anonymize_job_stream(job_id: str, request: Request, body: Optional[AnonymizeBody] = None):
     """
     SSE streaming version — emits progress events while the pipeline runs.
     Each event: data: {"step": "...", "message": "..."}\n\n
     """
+
+    overrides = body.model_dump() if body else None
 
     def event_stream() -> Generator[str, None, None]:
         events: list = []
@@ -172,7 +185,7 @@ def anonymize_job_stream(job_id: str, request: Request):
             events.append({"step": step, "message": msg})
 
         try:
-            result = _run_and_store(job_id, request, progress_cb=collect)
+            result = _run_and_store(job_id, request, progress_cb=collect, overrides=overrides)
         except HTTPException as exc:
             yield f"data: {json.dumps({'error': exc.detail})}\n\n"
             return

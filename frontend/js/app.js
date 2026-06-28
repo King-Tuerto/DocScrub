@@ -86,6 +86,16 @@ const API = {
     if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
     return { blob: await r.blob(), headers: r.headers };
   },
+
+  async postBlob(path, body) {
+    const r = await fetch(this.base + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`POST ${path} → ${r.status}`);
+    return { blob: await r.blob(), headers: r.headers };
+  },
 };
 
 // ---------------------------------------------------------------------------
