@@ -36,10 +36,19 @@ async function streamAnonymize(jobId) {
         const reader    = resp.body.getReader();
         const decoder   = new TextDecoder();
         let   buf       = '';
+        let   pipelineWarnings = [];
 
         function read() {
           reader.read().then(({ done, value }) => {
-            if (done) { loadReview(jobId).then(resolve).catch(reject); return; }
+            if (done) {
+              loadReview(jobId)
+                .then(() => {
+                  pipelineWarnings.forEach(w => toast(`LLM warning: ${w}`, 'warn'));
+                  resolve();
+                })
+                .catch(reject);
+              return;
+            }
             buf += decoder.decode(value, { stream: true });
             const lines = buf.split('\n');
             buf = lines.pop();  // incomplete line
@@ -52,6 +61,9 @@ async function streamAnonymize(jobId) {
                   const label = STEP_LABELS[ev.step] || ev.step;
                   if (indicator) indicator.textContent = label;
                   appendProgressStep(barsEl, label, ev.step === 'complete');
+                }
+                if (ev.warnings && ev.warnings.length) {
+                  pipelineWarnings = ev.warnings;
                 }
                 if (ev.error) {
                   toast(`Pipeline error: ${ev.error}`, 'error');

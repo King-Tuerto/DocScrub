@@ -341,3 +341,108 @@ class TestModelList:
         client = make_client()
         with pytest.raises(LLMUnreachableError):
             client.list_models()
+
+
+# ---------------------------------------------------------------------------
+# System prompt — few-shot example
+# ---------------------------------------------------------------------------
+
+class TestSystemPromptFewShot:
+    def _get_system_content(self, httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{LLM_ENDPOINT}/v1/chat/completions",
+            json=make_chat_response(EMPTY_LLM_RESPONSE),
+        )
+        client = make_client()
+        client.detect_pii("Hello world.")
+        body = json.loads(httpx_mock.get_requests()[0].content.decode())
+        return next(m["content"] for m in body["messages"] if m["role"] == "system")
+
+    def test_prompt_contains_example_input(self, httpx_mock):
+        """Prompt must show a concrete example input sentence."""
+        content = self._get_system_content(httpx_mock)
+        assert "Example input" in content or "example input" in content
+
+    def test_prompt_contains_example_output(self, httpx_mock):
+        """Prompt must show a concrete example output array."""
+        content = self._get_system_content(httpx_mock)
+        assert "Example output" in content or "example output" in content
+
+    def test_prompt_example_shows_object_not_nested_array(self, httpx_mock):
+        """The example output must use {curly braces}, not nested arrays."""
+        content = self._get_system_content(httpx_mock)
+        # A valid few-shot example must contain at least one JSON object literal
+        assert '{"text"' in content
+
+    def test_prompt_warns_against_nested_arrays(self, httpx_mock):
+        """Prompt must explicitly state elements must be objects, not arrays."""
+        content = self._get_system_content(httpx_mock)
+        lower = content.lower()
+        assert "object" in lower or "curly" in lower or "nested" in lower
+
+
+# ---------------------------------------------------------------------------
+# Warning logging — garbage response emits a log record
+# ---------------------------------------------------------------------------
+
+class TestWarningLogging:
+    def test_garbage_json_emits_log_warning(self, mock_llm_garbage, caplog):
+        """_parse_response must call logger.warning when JSON is unparseable."""
+        import logging
+        client = make_client()
+        with caplog.at_level(logging.WARNING, logger="backend.services.llm_client"):
+            client.detect_pii(SAMPLE_PII_TEXT)
+        assert len(caplog.records) >= 1
+        msgs = " ".join(r.getMessage() for r in caplog.records).lower()
+        assert "fallback" in msgs or "parse" in msgs or "json" in msgs
+
+    def test_non_list_json_emits_log_warning(self, httpx_mock, caplog):
+        """_parse_response must log when the JSON is valid but not an array."""
+        import logging
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{LLM_ENDPOINT}/v1/chat/completions",
+            json=make_chat_response('{"text": "John", "type": "PERSON", "confidence": "high"}'),
+        )
+        client = make_client()
+        with caplog.at_level(logging.WARNING, logger="backend.services.llm_client"):
+            client.detect_pii(SAMPLE_PII_TEXT)
+        assert len(caplog.records) >= 1
+
+
+# ---------------------------------------------------------------------------
+# SSE stream — warnings included in complete event
+# ---------------------------------------------------------------------------
+
+class TestStreamWarnings:
+    def test_stream_complete_event_includes_warnings(self, app_client, sample_pdf_path, mock_llm_garbage):
+        """When LLM returns garbage, the SSE complete event must carry warnings[]."""
+        with open(sample_pdf_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (sample_pdf_path.name, fh, "application/pdf")},
+            )
+        job_id = upload.json()["job_id"]
+
+        with app_client.stream("POST", f"/jobs/{job_id}/anonymize/stream") as resp:
+            assert resp.status_code == 200
+            complete_event = None
+            buf = ""
+            for chunk in resp.iter_text():
+                buf += chunk
+                for line in buf.split("\n"):
+                    if line.startswith("data:"):
+                        try:
+                            ev = json.loads(line[5:].strip())
+                            if ev.get("step") == "complete":
+                                complete_event = ev
+                        except json.JSONDecodeError:
+                            pass
+                buf = buf.split("\n")[-1]  # keep incomplete line
+
+        assert complete_event is not None, "No complete event found in SSE stream"
+        assert "warnings" in complete_event, "complete event must have a 'warnings' key"
+        assert isinstance(complete_event["warnings"], list)
+        # With garbage LLM, at least one warning about LLM fallback must be present
+        assert len(complete_event["warnings"]) >= 1

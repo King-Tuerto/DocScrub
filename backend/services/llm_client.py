@@ -7,8 +7,11 @@ when the endpoint cannot be reached.
 """
 
 import json
+import logging
 import time
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 import httpx
 
@@ -28,16 +31,18 @@ class LLMUnreachableError(Exception):
 
 _SYSTEM_PROMPT = """You are a PII detection assistant. Analyse the text and return ONLY a JSON array of objects.
 
-Each object must have exactly these fields:
+Each object must have exactly these three fields:
   "text"       — the exact string as it appears in the input
   "type"       — one of: PERSON, ORG, EMAIL, PHONE, ADDRESS, ID, SSN, ACCOUNT, DOB, OTHER
   "confidence" — one of: "high", "medium"
 
-Return [] if no PII is found. Do not include any explanation outside the JSON array.
+Rules:
+- Output ONLY the JSON array. No explanation, no markdown, no code fences.
+- Each element must be a JSON object (curly braces), NOT a nested array.
+- Return [] if no PII is found.
 
-Example:
-[{"text": "Jane Smith", "type": "PERSON", "confidence": "high"},
- {"text": "jane@example.com", "type": "EMAIL", "confidence": "high"}]
+Example input: "John Smith works at Acme Corp. His email is john@acme.com and SSN is 123-45-6789."
+Example output: [{"text": "John Smith", "type": "PERSON", "confidence": "high"}, {"text": "Acme Corp", "type": "ORG", "confidence": "high"}, {"text": "john@acme.com", "type": "EMAIL", "confidence": "high"}, {"text": "123-45-6789", "type": "SSN", "confidence": "high"}]
 """
 
 # ---------------------------------------------------------------------------
@@ -183,12 +188,15 @@ class LLMClient:
                 "LLM returned non-JSON output — fallback to regex-only. "
                 f"Raw: {content[:120]!r}"
             )
+            logger.warning("LLM JSON parse failure: %s", self.last_warning)
             return []
 
         if not isinstance(data, list):
             self.last_warning = (
-                "LLM response was not a JSON array — fallback to regex-only."
+                "LLM response was not a JSON array — fallback to regex-only. "
+                f"Got type: {type(data).__name__!r}, raw: {content[:120]!r}"
             )
+            logger.warning("LLM response not a list: %s", self.last_warning)
             return []
 
         if len(data) == 0:

@@ -194,7 +194,7 @@ def anonymize_job_stream(job_id: str, request: Request, body: Optional[Anonymize
         for ev in events:
             yield f"data: {json.dumps(ev)}\n\n"
 
-        # Final done event
-        yield f"data: {json.dumps({'step': 'complete', 'status': 'complete'})}\n\n"
+        # Final done event — include any pipeline warnings so the frontend can surface them
+        yield f"data: {json.dumps({'step': 'complete', 'status': result['status'], 'warnings': result.get('warnings', [])})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
