@@ -446,3 +446,116 @@ class TestStreamWarnings:
         assert isinstance(complete_event["warnings"], list)
         # With garbage LLM, at least one warning about LLM fallback must be present
         assert len(complete_event["warnings"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Type normalisation
+# ---------------------------------------------------------------------------
+
+class TestTypeNormalisation:
+    """_normalize_type maps non-standard labels to valid PIIType values."""
+
+    def _norm(self, raw):
+        from backend.services.llm_client import _normalize_type
+        return _normalize_type(raw)
+
+    def test_valid_type_unchanged(self):
+        assert self._norm("PERSON") == "PERSON"
+        assert self._norm("ORG") == "ORG"
+        assert self._norm("EMAIL") == "EMAIL"
+        assert self._norm("SSN") == "SSN"
+
+    def test_organization_to_org(self):
+        assert self._norm("ORGANIZATION") == "ORG"
+        assert self._norm("ORGANISATION") == "ORG"
+        assert self._norm("COMPANY") == "ORG"
+        assert self._norm("BUSINESS") == "ORG"
+
+    def test_name_variants_to_person(self):
+        assert self._norm("NAME") == "PERSON"
+        assert self._norm("FULL_NAME") == "PERSON"
+
+    def test_telephone_variants_to_phone(self):
+        assert self._norm("TELEPHONE") == "PHONE"
+        assert self._norm("MOBILE") == "PHONE"
+        assert self._norm("MOBILE_PHONE") == "PHONE"
+
+    def test_tax_id_to_ssn(self):
+        assert self._norm("TAX_ID") == "SSN"
+        assert self._norm("SOCIAL_SECURITY") == "SSN"
+        assert self._norm("SOCIAL_SECURITY_NUMBER") == "SSN"
+
+    def test_unknown_type_falls_back_to_other(self):
+        assert self._norm("CATEGORY") == "OTHER"
+        assert self._norm("SENSITIVE") == "OTHER"
+        assert self._norm("RANDOM_LABEL") == "OTHER"
+
+    def test_case_insensitive(self):
+        assert self._norm("organization") == "ORG"
+        assert self._norm("Organization") == "ORG"
+        assert self._norm("telephone") == "PHONE"
+
+    def test_whitespace_stripped(self):
+        assert self._norm("  PERSON  ") == "PERSON"
+        assert self._norm(" ORGANIZATION ") == "ORG"
+
+
+class TestNormalisedFindingsRetained:
+    """Entries with non-standard type labels must be kept, not silently dropped."""
+
+    def _make_response(self, items):
+        return json.dumps(items)
+
+    def _detect(self, httpx_mock, items):
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{LLM_ENDPOINT}/v1/chat/completions",
+            json=make_chat_response(self._make_response(items)),
+        )
+        client = make_client()
+        return client.detect_pii("test text")
+
+    def test_organization_entry_not_dropped(self, httpx_mock):
+        findings = self._detect(httpx_mock, [
+            {"text": "Acme Inc", "type": "ORGANIZATION", "confidence": "high"}
+        ])
+        assert len(findings) == 1
+        assert findings[0].text == "Acme Inc"
+        assert findings[0].type.value == "ORG"
+
+    def test_unknown_type_entry_not_dropped(self, httpx_mock):
+        findings = self._detect(httpx_mock, [
+            {"text": "secret-val", "type": "CATEGORY", "confidence": "high"}
+        ])
+        assert len(findings) == 1
+        assert findings[0].text == "secret-val"
+        assert findings[0].type.value == "OTHER"
+
+    def test_mixed_valid_and_nonstandard_types(self, httpx_mock):
+        findings = self._detect(httpx_mock, [
+            {"text": "Jane Smith", "type": "PERSON", "confidence": "high"},
+            {"text": "Acme Corp", "type": "ORGANIZATION", "confidence": "high"},
+            {"text": "555-1234", "type": "TELEPHONE", "confidence": "medium"},
+            {"text": "oddval", "type": "MYSTERY_TYPE", "confidence": "medium"},
+        ])
+        assert len(findings) == 4
+        types = {f.text: f.type.value for f in findings}
+        assert types["Jane Smith"] == "PERSON"
+        assert types["Acme Corp"] == "ORG"
+        assert types["555-1234"] == "PHONE"
+        assert types["oddval"] == "OTHER"
+
+    def test_confidence_case_normalised(self, httpx_mock):
+        """Model returning 'HIGH' (uppercase) must be accepted as 'high'."""
+        findings = self._detect(httpx_mock, [
+            {"text": "Jane Smith", "type": "PERSON", "confidence": "HIGH"},
+        ])
+        assert len(findings) == 1
+        assert findings[0].confidence.value == "high"
+
+    def test_unknown_confidence_defaults_to_medium(self, httpx_mock):
+        findings = self._detect(httpx_mock, [
+            {"text": "some-val", "type": "EMAIL", "confidence": "very_high"},
+        ])
+        assert len(findings) == 1
+        assert findings[0].confidence.value == "medium"

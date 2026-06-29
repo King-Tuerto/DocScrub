@@ -33,7 +33,8 @@ _SYSTEM_PROMPT = """You are a PII detection assistant. Analyse the text and retu
 
 Each object must have exactly these three fields:
   "text"       — the exact string as it appears in the input
-  "type"       — one of: PERSON, ORG, EMAIL, PHONE, ADDRESS, ID, SSN, ACCOUNT, DOB, OTHER
+  "type"       — MUST be one of these exact values: PERSON, ORG, EMAIL, PHONE, ADDRESS, ID, SSN, ACCOUNT, DOB, OTHER
+                 Do NOT use ORGANIZATION, COMPANY, NAME, TELEPHONE, or any other variant. Use ONLY the values listed above.
   "confidence" — one of: "high", "medium"
 
 Rules:
@@ -44,6 +45,77 @@ Rules:
 Example input: "John Smith works at Acme Corp. His email is john@acme.com and SSN is 123-45-6789."
 Example output: [{"text": "John Smith", "type": "PERSON", "confidence": "high"}, {"text": "Acme Corp", "type": "ORG", "confidence": "high"}, {"text": "john@acme.com", "type": "EMAIL", "confidence": "high"}, {"text": "123-45-6789", "type": "SSN", "confidence": "high"}]
 """
+
+# ---------------------------------------------------------------------------
+# Type normalisation — map common LLM label variants to valid PIIType values
+# ---------------------------------------------------------------------------
+
+_TYPE_ALIASES: dict = {
+    # ORG
+    "ORGANIZATION": "ORG",
+    "ORGANISATION": "ORG",
+    "COMPANY":      "ORG",
+    "BUSINESS":     "ORG",
+    "CORPORATION":  "ORG",
+    "INSTITUTION":  "ORG",
+    "EMPLOYER":     "ORG",
+    # PERSON
+    "NAME":         "PERSON",
+    "FULL_NAME":    "PERSON",
+    "INDIVIDUAL":   "PERSON",
+    "HUMAN":        "PERSON",
+    # PHONE
+    "TELEPHONE":    "PHONE",
+    "MOBILE":       "PHONE",
+    "MOBILE_PHONE": "PHONE",
+    "TEL":          "PHONE",
+    "CELL":         "PHONE",
+    "PHONE_NUMBER": "PHONE",
+    # SSN
+    "SOCIAL_SECURITY":        "SSN",
+    "SOCIAL_SECURITY_NUMBER": "SSN",
+    "TAX_ID":                 "SSN",
+    "TIN":                    "SSN",
+    "NIN":                    "SSN",
+    # ADDRESS
+    "LOCATION":  "ADDRESS",
+    "ADDR":      "ADDRESS",
+    "RESIDENCE": "ADDRESS",
+    # ACCOUNT
+    "ACCOUNT_NUMBER": "ACCOUNT",
+    "CREDIT_CARD":    "ACCOUNT",
+    "BANK_ACCOUNT":   "ACCOUNT",
+    # ID
+    "EMPLOYEE_ID": "ID",
+    "STUDENT_ID":  "ID",
+    "IDENTIFIER":  "ID",
+    "ID_NUMBER":   "ID",
+    # DOB
+    "DATE_OF_BIRTH": "DOB",
+    "BIRTHDAY":      "DOB",
+    "BIRTH_DATE":    "DOB",
+    "DATE":          "DOB",
+}
+
+_VALID_PII_TYPES: frozenset = frozenset(
+    "PERSON ORG EMAIL PHONE ADDRESS ID SSN ACCOUNT DOB OTHER".split()
+)
+
+
+def _normalize_type(raw: str) -> str:
+    """Map non-standard LLM type labels to a valid PIIType value.
+
+    Never drops a finding — unknown types fall back to OTHER so the text
+    is still anonymised even if the category label is wrong.
+    """
+    upper = raw.strip().upper()
+    if upper in _VALID_PII_TYPES:
+        return upper
+    canonical = _TYPE_ALIASES.get(upper)
+    if canonical:
+        return canonical
+    logger.debug("Unknown PII type %r normalised to OTHER", raw)
+    return "OTHER"
 
 # ---------------------------------------------------------------------------
 # Client
@@ -212,14 +284,19 @@ class LLMClient:
                 conf_val = item.get("confidence", "medium")
                 if not text_val or not type_val:
                     continue
+                # Normalise type — never drop a finding for a bad label
+                norm_type = _normalize_type(str(type_val))
+                # Normalise confidence — accept HIGH/MEDIUM case-insensitively
+                norm_conf = str(conf_val).lower() if str(conf_val).lower() in ("high", "medium") else "medium"
                 finding = PIIFinding(
-                    text=text_val,
-                    type=PIIType(type_val),
-                    confidence=Confidence(conf_val),
+                    text=str(text_val),
+                    type=PIIType(norm_type),
+                    confidence=Confidence(norm_conf),
                     source="llm",
                 )
                 findings.append(finding)
-            except (ValueError, KeyError):
+            except Exception as exc:
+                logger.debug("Skipping malformed item %r: %s", item, exc)
                 continue
 
         return findings
