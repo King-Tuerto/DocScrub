@@ -242,5 +242,16 @@
 <script src="/js/review.js"></script>
 <script src="/js/export.js"></script>
 
+<footer class="app-footer">
+  <button id="btn-stop-server" class="stop-server-btn" title="Stop the DocScrub server">■ Stop Server</button>
+</footer>
+<script>
+  document.getElementById('btn-stop-server').addEventListener('click', async () => {
+    if (!confirm('Stop the DocScrub server? You will need to relaunch the app to use it again.')) return;
+    try { await fetch('/shutdown', { method: 'POST' }); } catch (_) { /* server stopped */ }
+    document.body.innerHTML = '<div style="text-align:center;padding:3rem;font-family:sans-serif"><h2>Server stopped.</h2><p>Close this tab and relaunch DocScrub when needed.</p></div>';
+  });
+</script>
+
 </body>
 </html>

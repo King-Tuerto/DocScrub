@@ -103,6 +103,21 @@ def create_app(
     def health_check():
         return {"status": "ok"}
 
+    @app.post("/shutdown")
+    def shutdown_server():
+        """Stop the server. Browser-launched via the Stop Server button."""
+        import os
+        import signal
+        import threading
+
+        def _stop():
+            import time
+            time.sleep(0.2)
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        threading.Thread(target=_stop, daemon=True).start()
+        return {"status": "shutting down"}
+
     @app.get("/models")
     def list_models_proxy():
         """Proxy to LLM endpoint model list — avoids CORS issues from browser."""

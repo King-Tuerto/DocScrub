@@ -188,6 +188,20 @@ function showFileResult(files, idx) {
 // Mapping table
 // ---------------------------------------------------------------------------
 
+// Pick the best display value from a group of entries sharing a placeholder.
+// For PERSON: prefer Title Case "First Last" over initials or reversed forms.
+// For other types: prefer the non-lowercase original.
+function _canonicalOriginal(entries) {
+  if (entries[0].pii_type === 'PERSON') {
+    const titled = entries
+      .filter(e => /^[A-Z]/.test(e.original) && e.original.includes(' ') && !/^\w\.\s/.test(e.original))
+      .sort((a, b) => b.original.length - a.original.length);
+    if (titled.length) return titled[0].original;
+  }
+  const notLower = entries.find(e => e.original !== e.original.toLowerCase());
+  return (notLower || entries[0]).original;
+}
+
 function renderMappingTable(mapping) {
   const container = document.getElementById('mapping-table');
   if (!container) return;
@@ -196,6 +210,17 @@ function renderMappingTable(mapping) {
     container.innerHTML = '<p class="empty-msg">No PII found.</p>';
     return;
   }
+
+  // Group entries by placeholder — one row per placeholder
+  const groups = {};
+  const order = [];
+  mapping.forEach(entry => {
+    if (!groups[entry.placeholder]) {
+      groups[entry.placeholder] = [];
+      order.push(entry.placeholder);
+    }
+    groups[entry.placeholder].push(entry);
+  });
 
   const table = document.createElement('table');
   table.className = 'map-table';
@@ -213,18 +238,23 @@ function renderMappingTable(mapping) {
   `;
   const tbody = table.querySelector('tbody');
 
-  mapping.forEach(entry => {
+  order.forEach(placeholder => {
+    const entries = groups[placeholder];
+    const canonical = _canonicalOriginal(entries);
+    const piiType  = entries[0].pii_type;
+    const source   = entries[0].source || '';
+
     const tr = document.createElement('tr');
-    tr.dataset.placeholder = entry.placeholder;
+    tr.dataset.placeholder = placeholder;
     tr.innerHTML = `
-      <td><code>${escHtml(entry.placeholder)}</code></td>
-      <td class="original-cell"><span class="orig-text">${escHtml(entry.original)}</span>
-          <input class="orig-input" type="text" value="${escHtml(entry.original)}" hidden /></td>
-      <td><span class="pii-badge" style="background:${PII_COLORS[entry.pii_type]||'#e2e8f0'}">${escHtml(entry.pii_type)}</span></td>
-      <td>${escHtml(entry.source || '')}</td>
+      <td><code>${escHtml(placeholder)}</code></td>
+      <td class="original-cell"><span class="orig-text">${escHtml(canonical)}</span>
+          <input class="orig-input" type="text" value="${escHtml(canonical)}" hidden /></td>
+      <td><span class="pii-badge" style="background:${PII_COLORS[piiType]||'#e2e8f0'}">${escHtml(piiType)}</span></td>
+      <td>${escHtml(source)}</td>
       <td>
-        <button class="btn-edit" data-ph="${escHtml(entry.placeholder)}">Edit</button>
-        <button class="btn-delete" data-ph="${escHtml(entry.placeholder)}">Delete</button>
+        <button class="btn-edit" data-ph="${escHtml(placeholder)}">Edit</button>
+        <button class="btn-delete" data-ph="${escHtml(placeholder)}">Delete</button>
       </td>
     `;
     tbody.appendChild(tr);

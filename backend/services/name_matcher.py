@@ -185,6 +185,8 @@ def _generate_variants(entry: RosterEntry) -> List[str]:
         if nick not in first_names:
             first_names.append(nick)
 
+    _TITLES = ["Professor", "Prof.", "Dr.", "Mr.", "Mrs.", "Ms.", "Miss", "Mx."]
+
     variants: set = set()
     for fn in first_names:
         if last:
@@ -195,6 +197,11 @@ def _generate_variants(entry: RosterEntry) -> List[str]:
             initial = fn[0]
             variants.add(f"{initial}. {last}")  # J. Smith
             variants.add(f"{initial} {last}")   # J Smith
+
+    if last:
+        variants.add(last)                      # Smith (standalone last name)
+        for title in _TITLES:
+            variants.add(f"{title} {last}")     # Dr. Smith / Professor Smith / …
 
     # Add lowercase variants so case-insensitive text is caught
     lowercase_variants = {v.lower() for v in variants}

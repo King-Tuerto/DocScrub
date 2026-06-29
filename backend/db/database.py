@@ -96,6 +96,7 @@ def init_db(path: Path) -> None:
     # Migration: add new columns to existing tables (no-op if already present)
     _ensure_column(conn, "jobs", "tier", "TEXT NOT NULL DEFAULT 'full'")
     _ensure_column(conn, "images", "hash", "TEXT")
+    _ensure_column(conn, "roster_entries", "student_id", "TEXT")
     _ensure_column(conn, "roster_entries", "also_remove", "TEXT")
     conn.commit()
     conn.close()

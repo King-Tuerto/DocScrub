@@ -88,13 +88,20 @@ class TestTierNames:
         # SSN should NOT be replaced in names-only tier
         assert KNOWN_PII["ssn"] in anon_text
 
-    def test_tier_names_leaves_email_untouched(
+    def test_tier_names_no_regex_email_detection(
         self, sample_pdf_path, default_config
     ):
+        # names tier does no regex detection — email addresses are not replaced
+        # as [EMAIL_N] patterns.  However, if a roster last name appears in the
+        # email local-part (e.g. "smith" in "jane.smith@acme.com"), the
+        # standalone-last-name variant will still fire as [PERSON_N] — that is
+        # expected behaviour introduced with standalone last-name matching.
         roster = _make_roster([("Jane", "Smith")])
         result = _run(sample_pdf_path, default_config, roster_entries=roster, tier="names")
         anon_text = result.files[0].anonymized_text
-        assert KNOWN_PII["email"] in anon_text
+        # No [EMAIL_N] placeholders should appear — email detection is off
+        import re
+        assert not re.search(r'\[EMAIL_\d+\]', anon_text)
 
     def test_tier_names_empty_roster_produces_warning(
         self, sample_pdf_path, default_config
