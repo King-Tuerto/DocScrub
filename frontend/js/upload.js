@@ -180,8 +180,8 @@ function selectTier(tier) {
   const rosterHeading = document.querySelector('.roster-section-heading');
   if (rosterHeading) {
     rosterHeading.textContent = tier === 'full'
-      ? 'Load your class roster (optional)'
-      : 'Load your class roster';
+      ? 'Load your name list (optional)'
+      : 'Load your name list';
   }
   const rosterHint = document.getElementById('roster-optional-hint');
   if (rosterHint) rosterHint.hidden = tier !== 'full';
@@ -218,7 +218,7 @@ async function loadRosters(selectId) {
   if (!sel) return;
   try {
     const rosters = await API.get('/rosters');
-    sel.innerHTML = '<option value="">— select a saved roster —</option>';
+    sel.innerHTML = '<option value="">— select a saved name list —</option>';
     (rosters || []).forEach(r => {
       const opt = document.createElement('option');
       opt.value = r.id;
@@ -245,9 +245,9 @@ async function uploadRosterFile(file) {
     DS.config.roster_id = roster.id;
     updateScrubBtn();
     updateNextBtn();
-    toast(`Roster "${name}" loaded — ${result.count} entries`, 'success');
+    toast(`Name list "${name}" loaded — ${result.count} entries`, 'success');
   } catch (err) {
-    toast(`Roster upload failed: ${err.message}`, 'error');
+    toast(`Name list upload failed: ${err.message}`, 'error');
   }
 
   if (rosterFileInput) rosterFileInput.value = '';

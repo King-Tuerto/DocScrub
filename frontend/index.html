@@ -15,7 +15,7 @@
   <header class="app-header">
     <div class="app-header-text">
       <h1>DocScrub</h1>
-      <p class="subtitle">Anonymize student documents before sharing with cloud AI. Fully local — files never leave this machine.</p>
+      <p class="subtitle">Anonymize documents before sharing with cloud AI. Fully local — files never leave this machine.</p>
     </div>
     <button id="settings-btn" class="icon-btn" title="Settings" data-action="settings">⚙</button>
   </header>
@@ -29,7 +29,7 @@
         <div class="tier-badge">1</div>
         <div class="tier-card-body">
           <h3>Names Only</h3>
-          <p class="tier-card-desc">Replace student names from your class roster. Best for grading papers where only name anonymization is needed.</p>
+          <p class="tier-card-desc">Replace names from your list. Best when you know exactly which names to remove.</p>
         </div>
         <span class="tier-tag tier-tag-no-ai">No AI required</span>
       </div>
@@ -38,7 +38,7 @@
         <div class="tier-badge">2</div>
         <div class="tier-card-body">
           <h3>Names + Patterns</h3>
-          <p class="tier-card-desc">Roster names plus emails, phone numbers, SSNs, and other identifiable patterns detected automatically.</p>
+          <p class="tier-card-desc">Names from your list, plus emails, phone numbers, SSNs, and other identifiable patterns detected automatically.</p>
         </div>
         <span class="tier-tag tier-tag-no-ai">No AI required</span>
       </div>
@@ -57,18 +57,18 @@
 
   <!-- Step 2a — Roster (all tiers; optional for Full Scan) -->
   <div id="roster-section" class="config-section" hidden>
-    <p class="section-heading roster-section-heading">Load your class roster</p>
+    <p class="section-heading roster-section-heading">Load your name list</p>
     <div class="roster-inline">
       <select id="roster-select" name="roster_id">
-        <option value="">— select a saved roster —</option>
+        <option value="">— select a saved name list —</option>
       </select>
       <label class="btn-roster-upload" tabindex="0">
-        + Upload CSV
+        + Upload name list
         <input id="roster-file-input" type="file" accept=".csv,.xlsx" hidden />
       </label>
     </div>
-    <p id="roster-optional-hint" class="section-hint" hidden>Optional for Full Scan — roster names will be matched alongside AI-detected PII.</p>
-    <p class="section-hint">CSV format: <code>first_name, last_name, preferred_name, student_id, email</code></p>
+    <p id="roster-optional-hint" class="section-hint" hidden>Optional for Full Scan — names from your list will be matched alongside AI-detected PII.</p>
+    <p class="section-hint">CSV format: <code>first_name, last_name, preferred_name, id, email</code></p>
   </div>
 
   <!-- Step 2b — LLM settings (tier 3) -->

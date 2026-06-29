@@ -51,33 +51,33 @@ Setup takes about one minute on a normal internet connection. You only need to r
 
 ## Anonymization Tiers
 
-Choose a tier on the Image Review screen before clicking **Scrub Documents**.
+Choose a tier on the upload screen before adding your documents.
 
 | Tier | What it does | Requires |
 |---|---|---|
 | **Full Scan** | LLM + regex — catches names, orgs, addresses, SSNs, emails, phones, IDs | Ollama running locally |
-| **Names + Patterns** | Roster names + regex patterns — no LLM needed | A class roster CSV |
-| **Names Only** | Exact and nickname matching from your roster — fastest, zero AI | A class roster CSV |
+| **Names + Patterns** | Names from your list + regex patterns — no LLM needed | A name list CSV |
+| **Names Only** | Exact and nickname matching from your name list — fastest, zero AI | A name list CSV |
 
-### Using a roster (Tiers 2 and 3)
+### Using a name list (Tiers 1 and 2)
 
-Upload a CSV with student or employee names. Supported columns (any order, header row required):
+Upload a CSV with names. Supported columns (any order, header row required):
 
 ```
-first_name, last_name, preferred_name, student_id, email
+first_name, last_name, preferred_name, id, email
 ```
 
-`preferred_name`, `student_id`, and `email` are optional. Example:
+`preferred_name`, `id`, and `email` are optional. Example:
 
 ```csv
-first_name,last_name,preferred_name,student_id,email
+first_name,last_name,preferred_name,id,email
 Jane,Smith,,,
-Joseph,Doe,Joe,12345,jdoe@university.edu
+Joseph,Doe,Joe,12345,jdoe@example.com
 ```
 
 DocScrub automatically handles nickname variants (Joe → Joseph, Bill → William, etc.) and format variations (Smith Jane, Smith, Jane, J. Smith).
 
-Click **Upload roster CSV** on the Image Review screen to add a new roster. Rosters are saved locally and can be reused across jobs.
+Click **Upload name list** on the upload screen to add a new name list. Name lists are saved locally and can be reused across jobs.
 
 ---
 
@@ -105,7 +105,7 @@ The mapping JSON stays on your machine. Guard it like the original document.
 - **No telemetry, no analytics, no phoning home**
 - All data stays local: SQLite database, mapping files, and output files are on your machine
 - LLM calls go to your locally configured endpoint (default: `http://localhost:11434`)
-- Roster files contain real names — store and delete them according to your institution's data policy
+- Name list files contain real names — store and delete them according to your organization's data policy
 
 ---
 
