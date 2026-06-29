@@ -154,12 +154,23 @@ class LLMClient:
         chunks = self._chunk_text(text)
         seen: set = set()
         findings: List[PIIFinding] = []
+        total = len(chunks)
+        total_ms = 0.0
 
         for i, chunk in enumerate(chunks, start=1):
-            logger.info("Processing chunk %d/%d (%d chars)", i, len(chunks), len(chunk))
+            logger.info("Processing chunk %d/%d (%d chars)", i, total, len(chunk))
             if progress_cb:
-                progress_cb("llm_detect", f"Processing chunk {i}/{len(chunks)}")
+                avg_ms = total_ms / (i - 1) if i > 1 else None
+                progress_cb(
+                    "llm_detect",
+                    f"Processing chunk {i} of {total}",
+                    chunk=i,
+                    total=total,
+                    avg_ms=avg_ms,
+                )
+            t0 = time.monotonic()
             raw = self._call_chat(chunk)
+            total_ms += (time.monotonic() - t0) * 1000
             chunk_findings = self._parse_response(raw)
             for f in chunk_findings:
                 key = (f.text, f.type)

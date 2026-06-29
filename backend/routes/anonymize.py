@@ -202,29 +202,36 @@ def anonymize_job(job_id: str, request: Request, body: Optional[AnonymizeBody] =
 @router.post("/jobs/{job_id}/anonymize/stream")
 def anonymize_job_stream(job_id: str, request: Request, body: Optional[AnonymizeBody] = None):
     """
-    SSE streaming version — emits progress events while the pipeline runs.
-    Each event: data: {"step": "...", "message": "..."}\n\n
+    SSE streaming version — emits progress events in real-time while the pipeline runs.
+    Each event: data: {"step": "...", "message": "...", [optional chunk fields]}\n\n
     """
+    import queue
+    import threading
 
     overrides = body.model_dump() if body else None
+    _SENTINEL = object()
 
     def event_stream() -> Generator[str, None, None]:
-        events: list = []
+        q: queue.Queue = queue.Queue()
 
-        def collect(step: str, msg: str = ""):
-            events.append({"step": step, "message": msg})
+        def collect(step: str, msg: str = "", **extra):
+            q.put({"step": step, "message": msg, **extra})
 
-        try:
-            result = _run_and_store(job_id, request, progress_cb=collect, overrides=overrides)
-        except HTTPException as exc:
-            yield f"data: {json.dumps({'error': exc.detail})}\n\n"
-            return
+        def run():
+            try:
+                result = _run_and_store(job_id, request, progress_cb=collect, overrides=overrides)
+                q.put({"step": "complete", "status": result["status"], "warnings": result.get("warnings", [])})
+            except HTTPException as exc:
+                q.put({"error": exc.detail})
+            finally:
+                q.put(_SENTINEL)
 
-        # Emit collected progress events first
-        for ev in events:
-            yield f"data: {json.dumps(ev)}\n\n"
+        threading.Thread(target=run, daemon=True).start()
 
-        # Final done event — include any pipeline warnings so the frontend can surface them
-        yield f"data: {json.dumps({'step': 'complete', 'status': result['status'], 'warnings': result.get('warnings', [])})}\n\n"
+        while True:
+            item = q.get()
+            if item is _SENTINEL:
+                break
+            yield f"data: {json.dumps(item)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

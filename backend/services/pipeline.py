@@ -81,9 +81,9 @@ def run_pipeline(
             f"Invalid tier {tier!r}. Must be one of: {', '.join(sorted(_VALID_TIERS))}"
         )
 
-    def emit(step: str, msg: str = ""):
+    def emit(step: str, msg: str = "", **extra):
         if progress_cb:
-            progress_cb(step, msg)
+            progress_cb(step, msg, **extra)
 
     logger.info("Pipeline start — job=%s files=%d tier=%s", job_id, len(file_paths), tier)
     result = PipelineResult(job_id=job_id, tier=tier)

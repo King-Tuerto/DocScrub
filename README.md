@@ -59,6 +59,20 @@ Choose a tier on the upload screen before adding your documents.
 | **Names + Patterns** | Names from your list + regex patterns — no LLM needed | A name list CSV |
 | **Names Only** | Exact and nickname matching from your name list — fastest, zero AI | A name list CSV |
 
+### Tier 3 — performance expectations
+
+Tier 3 speed depends entirely on the hardware running your local LLM. Be realistic:
+
+| Setup | Speed per chunk | 10-page doc | 100-page board packet |
+|---|---|---|---|
+| 8B model on a mini PC (CPU) | ~60–90 s | 2–5 min | **2–3 hours** |
+| 8B model on a mid-range GPU | ~5–15 s | 15–45 min | 2–4 hours |
+| 70B model on a Mac Studio / high-end GPU | ~3–8 s | 5–20 min | 30–90 min |
+
+DocScrub shows live progress ("Processing chunk 3 of 140 · ~45 min remaining") so you can see it's working and estimate when it will finish.
+
+**Recommendation:** use Tier 2 (Names + Patterns) for daily work — it runs in seconds and catches the PII you actually know about. Switch to Tier 3 for short documents where you don't have a name list, or after upgrading to faster hardware. A well-prepared Tier 2 name list beats Tier 3 on a slow machine every time.
+
 ### Using a name list (Tiers 1 and 2)
 
 Click **⬇ Download blank template** on the upload screen to get a ready-to-fill CSV with the correct headers and two example rows.

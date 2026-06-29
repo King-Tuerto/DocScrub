@@ -1,4 +1,5 @@
 @echo off
+title DocScrub Server
 cd /d "%~dp0"
 echo.
 echo   DocScrub -- Starting...

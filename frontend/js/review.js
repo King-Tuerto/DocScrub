@@ -12,13 +12,20 @@
 
 const STEP_LABELS = {
   extract:     'Extracting text…',
-  llm_detect:  'LLM PII detection…',
+  llm_detect:  'AI scanning for PII…',
   regex_detect:'Regex safety net…',
   map:         'Building mapping…',
   replace:     'Applying replacements…',
   done:        'Finalising…',
   complete:    'Complete ✓',
 };
+
+function _fmtEta(remainingMs) {
+  const s = Math.round(remainingMs / 1000);
+  if (s < 90)  return `~${s}s remaining`;
+  const m = Math.round(s / 60);
+  return `~${m} min remaining`;
+}
 
 async function streamAnonymize(jobId) {
   return new Promise((resolve, reject) => {
@@ -42,6 +49,7 @@ async function streamAnonymize(jobId) {
         const decoder   = new TextDecoder();
         let   buf       = '';
         let   pipelineWarnings = [];
+        let   llmRow    = null;   // single row kept for chunk-level updates
 
         function read() {
           reader.read().then(({ done, value }) => {
@@ -62,11 +70,27 @@ async function streamAnonymize(jobId) {
               if (!line.startsWith('data:')) return;
               try {
                 const ev = JSON.parse(line.slice(5).trim());
-                if (ev.step) {
+
+                if (ev.step === 'llm_detect' && ev.chunk != null) {
+                  // Chunk-level update — update existing row in place, never append
+                  const remaining = ev.avg_ms != null
+                    ? _fmtEta(ev.avg_ms * (ev.total - ev.chunk))
+                    : null;
+                  const label = `Processing chunk ${ev.chunk} of ${ev.total}${remaining ? ' · ' + remaining : ''}`;
+                  if (indicator) indicator.textContent = label;
+                  if (!llmRow) {
+                    llmRow = appendProgressStep(barsEl, label, false);
+                  } else {
+                    const span = llmRow.querySelector('.step-label');
+                    if (span) span.textContent = label;
+                  }
+                } else if (ev.step) {
                   const label = STEP_LABELS[ev.step] || ev.step;
                   if (indicator) indicator.textContent = label;
                   appendProgressStep(barsEl, label, ev.step === 'complete');
+                  if (ev.step !== 'llm_detect') llmRow = null;
                 }
+
                 if (ev.warnings && ev.warnings.length) {
                   pipelineWarnings = ev.warnings;
                 }
@@ -85,12 +109,13 @@ async function streamAnonymize(jobId) {
 }
 
 function appendProgressStep(container, label, done = false) {
-  if (!container) return;
+  if (!container) return null;
   const row = document.createElement('div');
   row.className = `progress-step${done ? ' done' : ''}`;
-  row.innerHTML = `<span class="step-dot">${done ? '✓' : '…'}</span> ${escHtml(label)}`;
+  row.innerHTML = `<span class="step-dot">${done ? '✓' : '…'}</span> <span class="step-label">${escHtml(label)}</span>`;
   container.appendChild(row);
   container.scrollTop = container.scrollHeight;
+  return row;
 }
 
 // ---------------------------------------------------------------------------
