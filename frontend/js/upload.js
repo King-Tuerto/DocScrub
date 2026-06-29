@@ -174,7 +174,7 @@ function updateScrubBtn() {
   scrubBtn.disabled = needsRoster && !rosterId;
 }
 
-async function loadRosters() {
+async function loadRosters(selectId) {
   const sel = document.getElementById('roster-select');
   if (!sel) return;
   try {
@@ -186,8 +186,29 @@ async function loadRosters() {
       opt.textContent = `${r.name} (${r.entry_count || 0} entries)`;
       sel.appendChild(opt);
     });
+    if (selectId) sel.value = selectId;
   } catch { /* roster endpoint optional */ }
   updateScrubBtn();
+}
+
+async function uploadRosterFile(file) {
+  const rosterFileInput = document.getElementById('roster-file-input');
+  const name = file.name.replace(/\.[^.]+$/, '');
+
+  try {
+    const roster = await API.post('/rosters', { name });
+
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const result = await API.postForm(`/rosters/${roster.id}/entries`, fd);
+
+    await loadRosters(roster.id);
+    toast(`Roster "${name}" loaded — ${result.count} entries`, 'success');
+  } catch (err) {
+    toast(`Roster upload failed: ${err.message}`, 'error');
+  }
+
+  if (rosterFileInput) rosterFileInput.value = '';
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +280,13 @@ document.addEventListener('DOMContentLoaded', () => {
     ?.addEventListener('change', updateScrubBtn);
   document.getElementById('roster-select')
     ?.addEventListener('change', updateScrubBtn);
+
+  // Roster CSV upload
+  document.getElementById('roster-file-input')
+    ?.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) uploadRosterFile(file);
+    });
 
   // Select-all toggles
   selAll?.addEventListener('click', () => setAllChecked(true));

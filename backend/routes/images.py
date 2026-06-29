@@ -89,19 +89,15 @@ def list_images(job_id: str, request: Request):
 
         file_records = get_file_records(conn, job_id)
 
-        # Read existing DB flags before upsert so we preserve user-set flags
-        existing = {row["id"]: row for row in get_images_for_job(conn, job_id)}
-
         all_images = _extract_and_upsert(conn, job_id, output_dir, file_records)
 
-        # Re-read DB state after upsert to pick up any newly inserted rows
         db_state = {row["id"]: row for row in get_images_for_job(conn, job_id)}
 
         # Group by hash (fall back to image_id as key for unhashed images)
         groups: dict = {}
         for img in all_images:
             img_id = _image_id(job_id, img.source_filename, img.image_index)
-            db_row = db_state.get(img_id) or existing.get(img_id)
+            db_row = db_state.get(img_id)
             marked = bool(db_row["marked_for_removal"]) if db_row else True
 
             group_key = img.hash if img.hash else f"__nohash_{img_id}__"
