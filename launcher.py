@@ -151,20 +151,7 @@ def main() -> None:
     os.chdir(ROOT)
 
     if _port_in_use():
-        # Already running — just open the browser and show a notice
         webbrowser.open(URL)
-        try:
-            import tkinter as tk
-            from tkinter import messagebox
-            _r = tk.Tk()
-            _r.withdraw()
-            messagebox.showinfo(
-                "DocScrub",
-                "DocScrub is already running.\nOpened in your browser.",
-            )
-            _r.destroy()
-        except Exception:
-            pass
         return
 
     proc = _start_server()
