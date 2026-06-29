@@ -31,7 +31,7 @@ Setup takes about one minute on a normal internet connection. You only need to r
 1. Double-click the **DocScrub** icon on your Desktop
 2. Your browser opens automatically at `http://127.0.0.1:8000`
 3. Drag your PDF or Word files onto the upload zone and follow the steps
-4. Close the **DocScrub status window** to stop the server when you're done
+4. Click **End Session** (bottom-right of any screen) when you're done — the server stops and you can close the tab
 
 > **No Desktop shortcut yet?** You can also double-click `start.bat` inside the DocScrub folder.
 
@@ -61,26 +61,28 @@ Choose a tier on the upload screen before adding your documents.
 
 ### Using a name list (Tiers 1 and 2)
 
+Click **⬇ Download blank template** on the upload screen to get a ready-to-fill CSV with the correct headers and two example rows.
+
 Upload a CSV in one of two formats:
 
 **Full format** — one person per row, all columns optional except first/last name:
 
 ```
-first_name, last_name, preferred_name, id, email, also_remove
+first_name,last_name,preferred_name,student_id,email,also_remove
 ```
 
 | Column | Description |
 |---|---|
 | `first_name`, `last_name` | Required (or use a single `name` column) |
 | `preferred_name` | Nickname/alias — also matched |
-| `id` | Student or employee ID — exact match, replaced as `[ID_N]` |
+| `student_id` | Student or employee ID — exact match, replaced as `[ID_N]` |
 | `email` | Email address — exact match, replaced as `[EMAIL_N]` |
 | `also_remove` | Catch-all: company names, project names, addresses, etc. Replaced as `[REDACTED_N]`. Separate multiple values with semicolons: `Acme Corp;Project Alpha;123 Main St` |
 
 Example:
 
 ```csv
-first_name,last_name,preferred_name,id,email,also_remove
+first_name,last_name,preferred_name,student_id,email,also_remove
 Jane,Smith,,,jane@example.com,Acme Corp;Project Alpha
 Joseph,Doe,Joe,12345,jdoe@example.com,
 ```

@@ -66,9 +66,10 @@
         + Upload name list
         <input id="roster-file-input" type="file" accept=".csv,.xlsx" hidden />
       </label>
+      <a href="/template/csv" download="docscrub_name_list_template.csv" class="btn-template-dl">⬇ Download blank template</a>
     </div>
     <p id="roster-optional-hint" class="section-hint" hidden>Optional for Full Scan — names from your list will be matched alongside AI-detected PII.</p>
-    <p class="section-hint">Full format: <code>first_name, last_name, preferred_name, id, email, also_remove</code><br>
+    <p class="section-hint">Full format: <code>first_name, last_name, preferred_name, student_id, email, also_remove</code><br>
     Simple format: single column with header <code>text</code>, <code>term</code>, or <code>remove</code> — one removal target per row.<br>
     <code>also_remove</code> accepts multiple values per cell separated by semicolons: <code>Acme Corp;Project Alpha</code></p>
   </div>
@@ -243,13 +244,13 @@
 <script src="/js/export.js"></script>
 
 <footer class="app-footer">
-  <button id="btn-stop-server" class="stop-server-btn" title="Stop the DocScrub server">■ Stop Server</button>
+  <button id="btn-end-session" class="end-session-btn" title="Stop the DocScrub server and end this session">End Session</button>
 </footer>
 <script>
-  document.getElementById('btn-stop-server').addEventListener('click', async () => {
-    if (!confirm('Stop the DocScrub server? You will need to relaunch the app to use it again.')) return;
-    try { await fetch('/shutdown', { method: 'POST' }); } catch (_) { /* server stopped */ }
-    document.body.innerHTML = '<div style="text-align:center;padding:3rem;font-family:sans-serif"><h2>Server stopped.</h2><p>Close this tab and relaunch DocScrub when needed.</p></div>';
+  document.getElementById('btn-end-session').addEventListener('click', async () => {
+    if (!confirm('End this DocScrub session?\n\nThe server will stop. You will need to relaunch DocScrub to use it again.')) return;
+    try { await fetch('/shutdown', { method: 'POST' }); } catch (_) { /* server already stopped */ }
+    document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#f9fafb"><h2 style="font-size:1.5rem;font-weight:700;color:#111827;margin-bottom:.75rem">DocScrub has stopped.</h2><p style="color:#6b7280">You can close this tab.</p></div>';
   });
 </script>
 

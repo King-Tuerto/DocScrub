@@ -20,9 +20,11 @@ from backend.db.database import init_db
 from backend.routes import upload, anonymize, review, export, reidentify, images, roster
 
 # ---------------------------------------------------------------------------
-# Project root (absolute, resolved at import time)
+# Project root — always absolute, even when __file__ is a relative path
+# (which can happen on Windows when uvicorn imports the module before the
+# file-loader has resolved the full path).
 # ---------------------------------------------------------------------------
-_PROJECT_ROOT = Path(__file__).parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ---------------------------------------------------------------------------
@@ -84,16 +86,24 @@ def create_app(
         output_dir = _PROJECT_ROOT / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Initialise database
+    # Initialise database — resolve to absolute path so sqlite3 always finds
+    # the same file regardless of the process working directory.
     db_path = Path(config.get("db_path", "./docscrub.db"))
     if not db_path.is_absolute():
         db_path = _PROJECT_ROOT / db_path
-    init_db(db_path)  # belt: runs when factory is called
+    db_path = db_path.resolve()  # guarantee absolute on all code paths
+
+    logging.getLogger(__name__).info("DB path: %s", db_path)
+    init_db(db_path)  # belt: runs synchronously when the factory is called
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # suspenders: also run on uvicorn startup so a deleted DB is re-created
-        init_db(app.state.db_path)
+        # Suspenders: also run on uvicorn startup event so a DB deleted between
+        # factory-call and first request is silently recreated.
+        # Use the closure variable (db_path) — NOT app.state.db_path — to avoid
+        # any timing dependency on when Starlette attaches the state object.
+        logging.getLogger(__name__).info("Lifespan startup: init_db(%s)", db_path)
+        init_db(db_path)
         yield
 
     app = FastAPI(title="DocScrub", version="0.1.0", lifespan=lifespan)

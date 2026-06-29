@@ -4,6 +4,7 @@ Roster routes — POST /rosters
                 GET  /rosters/{id}
                 POST /rosters/{id}/entries
                 DELETE /rosters/{id}
+                GET  /template/csv
 """
 
 from pathlib import Path
@@ -101,6 +102,24 @@ async def upload_roster_entries(
         return {"roster_id": roster_id, "count": len(entries)}
     finally:
         conn.close()
+
+
+_CSV_TEMPLATE = (
+    "first_name,last_name,preferred_name,student_id,email,also_remove\r\n"
+    "Jane,Doe,Janie,STU-001,jane.doe@university.edu,\r\n"
+    "John,Smith,Johnny,STU-002,john.smith@university.edu,Project Alpha;Acme Corp\r\n"
+)
+_CSV_FILENAME = "docscrub_name_list_template.csv"
+
+
+@router.get("/template/csv")
+def download_csv_template():
+    """Return a blank name-list CSV template with the correct headers and two example rows."""
+    return Response(
+        content=_CSV_TEMPLATE,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{_CSV_FILENAME}"'},
+    )
 
 
 @router.delete("/rosters/{roster_id}", status_code=204)

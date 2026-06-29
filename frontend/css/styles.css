@@ -700,34 +700,46 @@ button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
 .drop-zone-sub { color: var(--gray-500) !important; font-size: .875rem !important; }
 
 /* =========================================================================
-   App footer — Stop Server button
+   App footer — End Session button
    ========================================================================= */
 .app-footer {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  text-align: right;
-  padding: .375rem .75rem;
-  background: transparent;
-  pointer-events: none;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: .5rem 1rem;
+  background: rgba(249,250,251,.96);
+  border-top: 1px solid var(--gray-200);
   z-index: 100;
 }
-.stop-server-btn {
-  pointer-events: auto;
-  background: none;
-  border: 1px solid var(--gray-300);
-  color: var(--gray-400);
-  font-size: .7rem;
-  padding: .2rem .5rem;
-  border-radius: .25rem;
-  cursor: pointer;
-  opacity: .6;
-  transition: opacity .15s, color .15s, border-color .15s;
-}
-.stop-server-btn:hover {
-  opacity: 1;
-  color: #dc2626;
-  border-color: #dc2626;
+.end-session-btn {
   background: #fff1f1;
+  border: 1.5px solid #fca5a5;
+  color: #dc2626;
+  font-size: .875rem;
+  font-weight: 600;
+  padding: .4rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  letter-spacing: .01em;
 }
+.end-session-btn:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+/* Template download link */
+.btn-template-dl {
+  display: inline-block;
+  font-size: .8125rem;
+  color: var(--blue);
+  text-decoration: none;
+  padding: .2rem .4rem;
+  border-radius: var(--radius);
+  margin-left: .25rem;
+}
+.btn-template-dl:hover { text-decoration: underline; }
