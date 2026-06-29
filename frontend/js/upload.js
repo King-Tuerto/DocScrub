@@ -171,10 +171,20 @@ function selectTier(tier) {
 
   const rosterSection = document.getElementById('roster-section');
   const llmSection    = document.getElementById('llm-section');
-  const needsRoster   = tier === 'names' || tier === 'names_patterns';
 
-  if (rosterSection) rosterSection.hidden = !needsRoster;
+  // Roster shown for all tiers — required for 1 & 2, optional for Full Scan
+  if (rosterSection) rosterSection.hidden = false;
   if (llmSection)    llmSection.hidden    = tier !== 'full';
+
+  // Heading and hint reflect whether roster is required or optional
+  const rosterHeading = document.querySelector('.roster-section-heading');
+  if (rosterHeading) {
+    rosterHeading.textContent = tier === 'full'
+      ? 'Load your class roster (optional)'
+      : 'Load your class roster';
+  }
+  const rosterHint = document.getElementById('roster-optional-hint');
+  if (rosterHint) rosterHint.hidden = tier !== 'full';
 
   if (tier === 'full') {
     const epInput = document.getElementById('llm-endpoint-inline');

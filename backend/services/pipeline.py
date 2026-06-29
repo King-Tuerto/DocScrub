@@ -21,7 +21,7 @@ from backend.services.file_reader import extract_file
 
 logger = logging.getLogger(__name__)
 from backend.services.llm_client import LLMClient, LLMUnreachableError
-from backend.services.mapper import MappingTable, build_mapping
+from backend.services.mapper import MappingEntry, MappingTable, build_mapping
 from backend.services.regex_engine import run_regex_engine
 from backend.services.replacer import apply_replacements
 
@@ -179,12 +179,48 @@ def run_pipeline(
     emit("map", "Building replacement mapping")
 
     if tier == "full":
-        all_findings = llm_findings + regex_findings
+        # Optional roster pass — run first so roster names take priority
+        roster_mapping = MappingTable(entries=[])
+        if roster_entries:
+            from backend.services.name_matcher import build_name_mapping
+            roster_mapping = build_name_mapping(roster_entries)
+            logger.info(
+                "Full tier roster: %d name variants for %d student(s)",
+                len(roster_mapping.entries), len(roster_entries),
+            )
+
+        # Filter LLM + regex findings: skip text already covered by roster
+        roster_originals = {e.original for e in roster_mapping.entries}
+        extra_findings = [
+            f for f in (llm_findings + regex_findings)
+            if f.text not in roster_originals
+        ]
+        extra_mapping = build_mapping(extra_findings)
         logger.info(
-            "Merging %d LLM + %d regex = %d total finding(s)",
-            len(llm_findings), len(regex_findings), len(all_findings),
+            "Merging: %d LLM + %d regex (%d after roster dedup), %d roster variants",
+            len(llm_findings), len(regex_findings),
+            len(extra_findings), len(roster_mapping.entries),
         )
-        mapping = build_mapping(all_findings)
+
+        # Renumber extra PERSON entries to avoid collision with roster [PERSON_N]
+        person_count = len({
+            e.placeholder for e in roster_mapping.entries if e.pii_type == "PERSON"
+        })
+        if person_count:
+            shifted: list = []
+            for e in extra_mapping.entries:
+                if e.pii_type == "PERSON":
+                    old_n = int(e.placeholder[len("[PERSON_"):-1])
+                    e = MappingEntry(
+                        original=e.original,
+                        placeholder=f"[PERSON_{old_n + person_count}]",
+                        pii_type=e.pii_type,
+                        source=e.source,
+                    )
+                shifted.append(e)
+            extra_mapping = MappingTable(entries=shifted)
+
+        mapping = MappingTable(entries=roster_mapping.entries + extra_mapping.entries)
 
     elif tier == "names":
         if not roster_entries:

@@ -47,7 +47,7 @@
         <div class="tier-badge">3</div>
         <div class="tier-card-body">
           <h3>Full Scan</h3>
-          <p class="tier-card-desc">AI-powered detection finds all names, organizations, physical addresses, dates of birth, and more.</p>
+          <p class="tier-card-desc">Everything in Names + Patterns, plus AI-powered detection of all names, organizations, and addresses.</p>
         </div>
         <span class="tier-tag tier-tag-ai">Requires Ollama</span>
       </div>
@@ -55,9 +55,9 @@
     </div>
   </div>
 
-  <!-- Step 2a — Roster (tiers 1 & 2) -->
+  <!-- Step 2a — Roster (all tiers; optional for Full Scan) -->
   <div id="roster-section" class="config-section" hidden>
-    <p class="section-heading">Load your class roster</p>
+    <p class="section-heading roster-section-heading">Load your class roster</p>
     <div class="roster-inline">
       <select id="roster-select" name="roster_id">
         <option value="">— select a saved roster —</option>
@@ -67,6 +67,7 @@
         <input id="roster-file-input" type="file" accept=".csv,.xlsx" hidden />
       </label>
     </div>
+    <p id="roster-optional-hint" class="section-hint" hidden>Optional for Full Scan — roster names will be matched alongside AI-detected PII.</p>
     <p class="section-hint">CSV format: <code>first_name, last_name, preferred_name, student_id, email</code></p>
   </div>
 
