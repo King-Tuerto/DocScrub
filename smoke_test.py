@@ -14,17 +14,22 @@ import json
 import sys
 import time
 
+import fitz  # PyMuPDF
 import httpx
 from docx import Document
 
 BASE = "http://127.0.0.1:8000"
 _SHUTDOWN = "--no-shutdown" not in sys.argv
 
-# PII we embed in the test document
+# PII embedded in the DOCX test
 FIRST1, LAST1 = "Valentina", "Rosenstein"
 FIRST2, LAST2 = "Marcus", "Okonkwo"
-TEST_EMAIL = "valentina.rosenstein@smoketest.example"
-TEST_PHONE = "555-867-5309"
+DOCX_EMAIL = "valentina.rosenstein@smoketest.example"
+DOCX_PHONE = "555-867-5309"
+
+# PII embedded in the PDF test (reuses roster names so Tier 2 catches them)
+PDF_EMAIL = "pdf.test@smoketest.example"
+PDF_PHONE = "555-234-5678"
 
 _results: list[tuple[str, bool, str]] = []
 
@@ -81,8 +86,8 @@ def _make_docx_bytes() -> bytes:
     doc.add_paragraph(
         f"Meeting notes for {FIRST1} {LAST1} and {FIRST2} {LAST2}."
     )
-    doc.add_paragraph(f"Primary contact: {TEST_EMAIL}")
-    doc.add_paragraph(f"Call back at: {TEST_PHONE}")
+    doc.add_paragraph(f"Primary contact: {DOCX_EMAIL}")
+    doc.add_paragraph(f"Call back at: {DOCX_PHONE}")
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
@@ -91,6 +96,25 @@ def _make_docx_bytes() -> bytes:
 def _docx_full_text(data: bytes) -> str:
     doc = Document(io.BytesIO(data))
     return "\n".join(p.text for p in doc.paragraphs)
+
+
+def _make_pdf_bytes() -> bytes:
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 100), f"Report by {FIRST1} {LAST1} and {FIRST2} {LAST2}.")
+    page.insert_text((72, 130), f"Contact: {PDF_EMAIL}")
+    page.insert_text((72, 160), f"Phone: {PDF_PHONE}")
+    buf = io.BytesIO()
+    doc.save(buf)
+    doc.close()
+    return buf.getvalue()
+
+
+def _pdf_full_text(data: bytes) -> str:
+    doc = fitz.open(stream=data, filetype="pdf")
+    text = "".join(page.get_text() for page in doc)
+    doc.close()
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -210,11 +234,11 @@ def main() -> None:
             problems.append(f"Original name '{FIRST2} {LAST2}' still present")
         if "[EMAIL_" not in anon:
             problems.append("No [EMAIL_N] placeholder found")
-        if TEST_EMAIL in anon:
+        if DOCX_EMAIL in anon:
             problems.append(f"Original email still present")
         if "[PHONE_" not in anon:
             problems.append("No [PHONE_N] placeholder found")
-        if TEST_PHONE in anon:
+        if DOCX_PHONE in anon:
             problems.append(f"Original phone still present")
 
         if problems:
@@ -293,14 +317,111 @@ def main() -> None:
     run("G. Re-identify — original names restored in DOCX", step_g)
 
     # ------------------------------------------------------------------
-    # H. Shutdown
+    # I. Upload test PDF
+    # ------------------------------------------------------------------
+    pdf_job_id: str | None = None
+
+    def step_i():
+        nonlocal pdf_job_id
+        pdf_bytes = _make_pdf_bytes()
+        resp = client.post(
+            "/upload",
+            files={"files": ("smoke_test.pdf", pdf_bytes, "application/pdf")},
+        )
+        assert resp.status_code == 200, f"POST /upload (PDF) {resp.status_code}: {resp.text}"
+        pdf_job_id = resp.json()["job_id"]
+        assert pdf_job_id, "No job_id in PDF upload response"
+
+    run("I. Upload test PDF (in-memory)", step_i)
+
+    if pdf_job_id is None:
+        print("\n  Cannot continue PDF steps without a job. Skipping J-L.")
+    else:
+        # ------------------------------------------------------------------
+        # J. Tier 2 anonymization of PDF
+        # ------------------------------------------------------------------
+        def step_j():
+            with client.stream(
+                "POST",
+                f"/jobs/{pdf_job_id}/anonymize/stream",
+                json={"tier": "names_patterns", "roster_id": roster_id},
+            ) as resp:
+                assert resp.status_code == 200, (
+                    f"POST /anonymize/stream (PDF) {resp.status_code}"
+                )
+                completed = False
+                for line in resp.iter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    ev = json.loads(line[5:].strip())
+                    if ev.get("error"):
+                        raise RuntimeError(f"Pipeline error: {ev['error']}")
+                    if ev.get("step") == "complete":
+                        completed = True
+                        break
+            assert completed, "PDF stream closed without a 'complete' event"
+
+        run("J. Tier 2 anonymization of PDF (SSE stream)", step_j)
+
+        # ------------------------------------------------------------------
+        # K. Review PDF — verify PII replaced
+        # ------------------------------------------------------------------
+        def step_k():
+            resp = client.get(f"/jobs/{pdf_job_id}/review")
+            assert resp.status_code == 200, f"GET /review (PDF) {resp.status_code}"
+            files = resp.json().get("files", [])
+            assert files, "No files in PDF review response"
+            anon = files[0]["anonymized_text"]
+
+            problems = []
+            if "[PERSON_" not in anon:
+                problems.append("No [PERSON_N] placeholder found")
+            if f"{FIRST1} {LAST1}" in anon:
+                problems.append(f"Original name '{FIRST1} {LAST1}' still present")
+            if "[EMAIL_" not in anon:
+                problems.append("No [EMAIL_N] placeholder found")
+            if PDF_EMAIL in anon:
+                problems.append("Original PDF email still present")
+            if "[PHONE_" not in anon:
+                problems.append("No [PHONE_N] placeholder found")
+            if PDF_PHONE in anon:
+                problems.append("Original PDF phone still present")
+
+            if problems:
+                raise AssertionError(
+                    "; ".join(problems) + f"\n         anonymized_text: {anon[:300]}"
+                )
+
+        run("K. Review PDF — names, email, phone all replaced", step_k)
+
+        # ------------------------------------------------------------------
+        # L. Export PDF — valid file with placeholders
+        # ------------------------------------------------------------------
+        def step_l():
+            resp = client.get(f"/jobs/{pdf_job_id}/export")
+            assert resp.status_code == 200, f"GET /export (PDF) {resp.status_code}: {resp.text}"
+            pdf_data = resp.content
+            assert len(pdf_data) > 100, "Exported PDF is suspiciously small"
+
+            full_text = _pdf_full_text(pdf_data)
+            assert "[PERSON_" in full_text, (
+                f"[PERSON_N] not in exported PDF text. Got: {full_text[:300]}"
+            )
+            assert f"{FIRST1} {LAST1}" not in full_text, (
+                "Original name still present in exported PDF"
+            )
+
+        run("L. Export PDF — valid file, placeholder present", step_l)
+
+    # ------------------------------------------------------------------
+    # M. Shutdown
     # ------------------------------------------------------------------
     if _SHUTDOWN:
-        def step_h():
+        def step_m():
             resp = client.post("/shutdown")
             assert resp.status_code == 200, f"POST /shutdown {resp.status_code}"
 
-        run("H. POST /shutdown", step_h)
+        run("M. POST /shutdown", step_m)
 
     client.close()
     _summary()
