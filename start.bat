@@ -22,6 +22,4 @@ echo   Close this window to stop DocScrub.
 echo.
 python -m uvicorn backend.main:create_app --factory --host 127.0.0.1 --port 8000
 
-echo.
-echo   DocScrub has stopped.
-pause
+

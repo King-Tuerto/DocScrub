@@ -98,6 +98,12 @@ class TestCreateShortcut:
     def _src(self) -> str:
         return (ROOT / "create_shortcut.py").read_text(encoding="utf-8")
 
+    def test_window_style_minimised(self):
+        """WindowStyle = 7 makes the terminal start minimised in the taskbar."""
+        src = self._src()
+        assert "WindowStyle" in src
+        assert "7" in src
+
     def test_targets_cmd_not_pythonw(self):
         src = self._src()
         assert "cmd" in src.lower(), "create_shortcut.py must target cmd.exe"

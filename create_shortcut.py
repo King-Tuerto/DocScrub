@@ -5,8 +5,9 @@ Create a "DocScrub" shortcut on the user's Desktop.
 Called by setup.bat. Uses PowerShell's WScript.Shell COM object so
 no third-party libraries are needed.
 
-The shortcut launches start.bat in a cmd window. The terminal stays visible
-while the server is running — closing it stops the server cleanly.
+The shortcut launches start.bat minimised (WindowStyle 7) so the terminal
+sits in the taskbar while the server runs. Closing it from the taskbar
+stops the server cleanly.
 
 Exit code 0 = success, 1 = failure.
 """
@@ -25,7 +26,6 @@ def main() -> int:
     shortcut_path = desktop / "DocScrub.lnk"
     icon = root / "assets" / "docscrub.ico"
 
-    # /c runs the script and closes the window when done (after the pause)
     arguments = f'/c ""{start_bat}""'
 
     ps = f"""
@@ -36,6 +36,7 @@ $s.Arguments        = '{arguments}'
 $s.WorkingDirectory = '{root}'
 $s.IconLocation     = '{icon}'
 $s.Description      = 'DocScrub -- Document Anonymizer'
+$s.WindowStyle      = 7
 $s.Save()
 """
 
