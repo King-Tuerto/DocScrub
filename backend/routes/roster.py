@@ -93,6 +93,7 @@ async def upload_roster_entries(
                 "preferred_name": e.preferred_name,
                 "student_id": e.student_id,
                 "email": e.email,
+                "also_remove": e.also_remove,
             }
             for e in entries
         ]

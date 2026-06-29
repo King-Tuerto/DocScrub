@@ -163,11 +163,12 @@ class TestBuildNameMapping:
         placeholders = {e.placeholder for e in person_entries}
         assert len(placeholders) >= 2
 
-    def test_all_entries_are_person_type(self, multi_entry_roster):
+    def test_entry_types_are_known_roster_types(self, multi_entry_roster):
         from backend.services.name_matcher import build_name_mapping
         table = build_name_mapping(multi_entry_roster)
+        allowed_types = {"PERSON", "ID", "EMAIL", "REDACTED"}
         for e in table.entries:
-            assert e.pii_type == "PERSON"
+            assert e.pii_type in allowed_types, f"Unexpected type {e.pii_type!r}"
 
     def test_no_single_char_variants_produced(self, single_entry_roster):
         """No variant shorter than 2 chars must appear (word-boundary safety)."""

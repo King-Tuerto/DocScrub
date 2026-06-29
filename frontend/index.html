@@ -68,7 +68,9 @@
       </label>
     </div>
     <p id="roster-optional-hint" class="section-hint" hidden>Optional for Full Scan — names from your list will be matched alongside AI-detected PII.</p>
-    <p class="section-hint">CSV format: <code>first_name, last_name, preferred_name, id, email</code></p>
+    <p class="section-hint">Full format: <code>first_name, last_name, preferred_name, id, email, also_remove</code><br>
+    Simple format: single column with header <code>text</code>, <code>term</code>, or <code>remove</code> — one removal target per row.<br>
+    <code>also_remove</code> accepts multiple values per cell separated by semicolons: <code>Acme Corp;Project Alpha</code></p>
   </div>
 
   <!-- Step 2b — LLM settings (tier 3) -->

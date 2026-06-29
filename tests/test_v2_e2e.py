@@ -209,7 +209,7 @@ class TestE2ETierNames:
         # httpx_mock raises if unexpected calls are made
         assert True
 
-    def test_tier1_mapping_has_only_person_entries(
+    def test_tier1_mapping_has_only_roster_entry_types(
         self, app_client, doc_with_roster_and_non_roster_names, roster_id, httpx_mock
     ):
         job_id = self._upload(app_client, doc_with_roster_and_non_roster_names)
@@ -219,8 +219,9 @@ class TestE2ETierNames:
         )
         mapping = app_client.get(f"/jobs/{job_id}/mapping").json()
         types = {e["pii_type"] for e in mapping}
-        non_person = types - {"PERSON"}
-        assert non_person == set(), f"Unexpected PII types in Tier 1 mapping: {non_person}"
+        allowed = {"PERSON", "ID", "EMAIL", "REDACTED"}
+        unexpected = types - allowed
+        assert unexpected == set(), f"Unexpected PII types in Tier 1 mapping: {unexpected}"
 
 
 # ---------------------------------------------------------------------------

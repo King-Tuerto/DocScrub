@@ -96,6 +96,7 @@ def init_db(path: Path) -> None:
     # Migration: add new columns to existing tables (no-op if already present)
     _ensure_column(conn, "jobs", "tier", "TEXT NOT NULL DEFAULT 'full'")
     _ensure_column(conn, "images", "hash", "TEXT")
+    _ensure_column(conn, "roster_entries", "also_remove", "TEXT")
     conn.commit()
     conn.close()
 
@@ -343,8 +344,8 @@ def add_roster_entries(conn: sqlite3.Connection, roster_id: str, entries: List[d
     for entry in entries:
         conn.execute(
             "INSERT INTO roster_entries "
-            "(id, roster_id, first_name, last_name, preferred_name, student_id, email) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(id, roster_id, first_name, last_name, preferred_name, student_id, email, also_remove) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 str(uuid.uuid4()),
                 roster_id,
@@ -353,6 +354,7 @@ def add_roster_entries(conn: sqlite3.Connection, roster_id: str, entries: List[d
                 entry.get("preferred_name"),
                 entry.get("student_id"),
                 entry.get("email"),
+                entry.get("also_remove"),
             ),
         )
     conn.commit()

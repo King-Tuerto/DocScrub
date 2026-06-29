@@ -191,8 +191,14 @@ def build_name_mapping(roster_entries: List[RosterEntry]) -> MappingTable:
     """
     Build a MappingTable from a list of RosterEntry objects.
 
-    All name variants for one student get the same [PERSON_N] placeholder.
-    Different students get different placeholders.
+    Emits entries for four PII types (all case-insensitive via lowercase variants):
+      [PERSON_N]   — fuzzy name matching (all name/nickname variants)
+      [ID_N]       — exact match on student_id / id
+      [EMAIL_N]    — exact match on email
+      [REDACTED_N] — exact match on each semicolon-separated term in also_remove
+
+    Each counter is independent (PERSON starts at 1, ID starts at 1, etc.).
+    Duplicates within each type are deduplicated across all roster entries.
     Returns an empty MappingTable for an empty roster.
     """
     if not roster_entries:
@@ -200,21 +206,72 @@ def build_name_mapping(roster_entries: List[RosterEntry]) -> MappingTable:
 
     all_entries: List[MappingEntry] = []
 
-    for i, entry in enumerate(roster_entries, start=1):
-        placeholder = f"[PERSON_{i}]"
-        variants = _generate_variants(entry)
-        seen_originals: set = set()
+    person_counter = 0
+    id_counter = 0
+    email_counter = 0
+    redacted_counter = 0
 
-        for variant in variants:
-            v = variant.strip()
-            if len(v) < 2 or v in seen_originals:
-                continue
-            seen_originals.add(v)
-            all_entries.append(MappingEntry(
-                original=v,
-                placeholder=placeholder,
-                pii_type="PERSON",
-                source="roster",
-            ))
+    seen_ids: set = set()
+    seen_emails: set = set()
+    seen_redacted: set = set()
+
+    for entry in roster_entries:
+        # --- Name variants → [PERSON_N] ---
+        has_name = bool((entry.first_name or "").strip() or (entry.last_name or "").strip())
+        if has_name:
+            person_counter += 1
+            placeholder = f"[PERSON_{person_counter}]"
+            variants = _generate_variants(entry)
+            seen_originals: set = set()
+
+            for variant in variants:
+                v = variant.strip()
+                if len(v) < 2 or v in seen_originals:
+                    continue
+                seen_originals.add(v)
+                all_entries.append(MappingEntry(
+                    original=v,
+                    placeholder=placeholder,
+                    pii_type="PERSON",
+                    source="roster",
+                ))
+
+        # --- student_id → [ID_N] (exact, case-insensitive) ---
+        sid = (entry.student_id or "").strip()
+        if sid and sid not in seen_ids:
+            seen_ids.add(sid)
+            id_counter += 1
+            ph = f"[ID_{id_counter}]"
+            all_entries.append(MappingEntry(original=sid, placeholder=ph, pii_type="ID", source="roster"))
+            if sid.lower() != sid:
+                all_entries.append(MappingEntry(original=sid.lower(), placeholder=ph, pii_type="ID", source="roster"))
+
+        # --- email → [EMAIL_N] (exact, case-insensitive) ---
+        em = (entry.email or "").strip()
+        if em:
+            em_lc = em.lower()
+            if em_lc not in seen_emails:
+                seen_emails.add(em_lc)
+                email_counter += 1
+                ph = f"[EMAIL_{email_counter}]"
+                all_entries.append(MappingEntry(original=em, placeholder=ph, pii_type="EMAIL", source="roster"))
+                if em_lc != em:
+                    all_entries.append(MappingEntry(original=em_lc, placeholder=ph, pii_type="EMAIL", source="roster"))
+
+        # --- also_remove → [REDACTED_N] (semicolon-separated, exact, case-insensitive) ---
+        if entry.also_remove:
+            for term in entry.also_remove.split(";"):
+                term = term.strip()
+                if len(term) < 2:
+                    continue
+                term_lc = term.lower()
+                if term_lc in seen_redacted:
+                    continue
+                seen_redacted.add(term_lc)
+                redacted_counter += 1
+                ph = f"[REDACTED_{redacted_counter}]"
+                all_entries.append(MappingEntry(original=term, placeholder=ph, pii_type="REDACTED", source="roster"))
+                if term_lc != term:
+                    all_entries.append(MappingEntry(original=term_lc, placeholder=ph, pii_type="REDACTED", source="roster"))
 
     return MappingTable(entries=all_entries)

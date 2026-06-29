@@ -122,6 +122,7 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None, overrides: O
                     preferred_name=e.get("preferred_name"),
                     student_id=e.get("student_id"),
                     email=e.get("email"),
+                    also_remove=e.get("also_remove"),
                 )
                 for e in raw_entries
             ]

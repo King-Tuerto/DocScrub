@@ -61,21 +61,42 @@ Choose a tier on the upload screen before adding your documents.
 
 ### Using a name list (Tiers 1 and 2)
 
-Upload a CSV with names. Supported columns (any order, header row required):
+Upload a CSV in one of two formats:
+
+**Full format** — one person per row, all columns optional except first/last name:
 
 ```
-first_name, last_name, preferred_name, id, email
+first_name, last_name, preferred_name, id, email, also_remove
 ```
 
-`preferred_name`, `id`, and `email` are optional. Example:
+| Column | Description |
+|---|---|
+| `first_name`, `last_name` | Required (or use a single `name` column) |
+| `preferred_name` | Nickname/alias — also matched |
+| `id` | Student or employee ID — exact match, replaced as `[ID_N]` |
+| `email` | Email address — exact match, replaced as `[EMAIL_N]` |
+| `also_remove` | Catch-all: company names, project names, addresses, etc. Replaced as `[REDACTED_N]`. Separate multiple values with semicolons: `Acme Corp;Project Alpha;123 Main St` |
+
+Example:
 
 ```csv
-first_name,last_name,preferred_name,id,email
-Jane,Smith,,,
-Joseph,Doe,Joe,12345,jdoe@example.com
+first_name,last_name,preferred_name,id,email,also_remove
+Jane,Smith,,,jane@example.com,Acme Corp;Project Alpha
+Joseph,Doe,Joe,12345,jdoe@example.com,
 ```
 
 DocScrub automatically handles nickname variants (Joe → Joseph, Bill → William, etc.) and format variations (Smith Jane, Smith, Jane, J. Smith).
+
+**Simple term list** — single column, one removal target per row, replaced as `[REDACTED_N]`:
+
+```csv
+text
+Acme Corp
+Project Alpha
+Classified Initiative
+```
+
+The column header can be `text`, `term`, `terms`, or `remove`. Use this when you don't have a people roster — just a list of things to strip.
 
 Click **Upload name list** on the upload screen to add a new name list. Name lists are saved locally and can be reused across jobs.
 
