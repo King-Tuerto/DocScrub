@@ -5,6 +5,11 @@ FileResult gains is_scanned / is_password_protected / file_type flags.
 PipelineResult collects warnings as a list (not a single string).
 run_pipeline accepts an optional output_dir; when provided it writes
 format-preserving output files (real PDF/DOCX, not plain text).
+
+Tiers:
+  'full'           — LLM + regex (default, existing behaviour)
+  'names'          — roster-only name matching, no LLM, no regex
+  'names_patterns' — roster names + regex, no LLM
 """
 
 import logging
@@ -19,6 +24,9 @@ from backend.services.llm_client import LLMClient, LLMUnreachableError
 from backend.services.mapper import MappingTable, build_mapping
 from backend.services.regex_engine import run_regex_engine
 from backend.services.replacer import apply_replacements
+
+
+_VALID_TIERS = {"full", "names", "names_patterns"}
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +51,7 @@ class PipelineResult:
     files: List[FileResult] = field(default_factory=list)
     mapping: MappingTable = field(default_factory=MappingTable)
     warnings: List[str] = field(default_factory=list)
+    tier: str = "full"
 
 
 # ---------------------------------------------------------------------------
@@ -55,25 +64,33 @@ def run_pipeline(
     config: dict,
     progress_cb: Optional[Callable[[str, str], None]] = None,
     output_dir: Optional[Path] = None,
+    roster_entries=None,
+    tier: str = "full",
 ) -> PipelineResult:
     """
-    Run the full anonymization pipeline on a list of files.
+    Run the anonymization pipeline on a list of files.
 
     progress_cb(step, message) is called at each pipeline step if provided.
     output_dir: when provided, format-preserving output files are written here.
+    roster_entries: list of RosterEntry objects used in 'names' and 'names_patterns' tiers.
+    tier: 'full' | 'names' | 'names_patterns'
     """
+
+    if tier not in _VALID_TIERS:
+        raise ValueError(
+            f"Invalid tier {tier!r}. Must be one of: {', '.join(sorted(_VALID_TIERS))}"
+        )
 
     def emit(step: str, msg: str = ""):
         if progress_cb:
             progress_cb(step, msg)
 
-    logger.info("Pipeline start — job=%s files=%d", job_id, len(file_paths))
-    result = PipelineResult(job_id=job_id)
+    logger.info("Pipeline start — job=%s files=%d tier=%s", job_id, len(file_paths), tier)
+    result = PipelineResult(job_id=job_id, tier=tier)
 
     # --- Step 1: Extract text from all files --------------------------------
     emit("extract", "Extracting text from documents")
 
-    # Track (doc, source_path) together so we can write format-preserving output
     processable: List[Tuple] = []  # (ExtractedDocument, Path)
 
     for path in file_paths:
@@ -114,15 +131,12 @@ def run_pipeline(
         logger.warning("Skipped %d file(s) (scanned or password-protected)", skipped)
     logger.info("Processable files: %d", len(processable))
 
-    # If all files were skipped, return early with what we have
     if not processable:
         return result
 
     extracted_docs = [item[0] for item in processable]
 
-    # --- Step 2: Combine all body texts + table cells for LLM detection ----
-    emit("llm_detect", "Detecting PII with LLM")
-
+    # --- Step 2: Combine all body texts for detection -----------------------
     def _doc_to_combined_text(d) -> str:
         parts = [d.body_text, d.header_text, d.footer_text]
         if d.table_cells:
@@ -133,48 +147,77 @@ def run_pipeline(
     all_text = "\n\n".join(_doc_to_combined_text(d) for d in extracted_docs)
     logger.info("Combined text length: %d chars", len(all_text))
 
-    llm_endpoint = config.get("llm_endpoint", "http://localhost:11434")
-    llm_model = config.get("default_model", "llama3.1:8b")
-    logger.info("LLM detection — endpoint=%s model=%s", llm_endpoint, llm_model)
-
+    # --- Step 3: LLM detection (full tier only) -----------------------------
     llm_findings = []
-    llm_client = LLMClient(endpoint=llm_endpoint, model=llm_model)
-    try:
-        llm_findings = llm_client.detect_pii(all_text)
-        logger.info("LLM returned %d finding(s)", len(llm_findings))
-        if llm_client.last_warning:
-            logger.warning("LLM response warning: %s", llm_client.last_warning)
-            result.warnings.append(llm_client.last_warning)
-    except LLMUnreachableError as exc:
-        logger.warning("LLM unreachable — falling back to regex-only: %s", exc)
-        result.warnings.append(
-            f"LLM fallback: {exc}. Falling back to regex-only detection."
-        )
+    if tier == "full":
+        llm_endpoint = config.get("llm_endpoint", "http://localhost:11434")
+        llm_model = config.get("default_model", "llama3.1:8b")
+        logger.info("LLM detection — endpoint=%s model=%s", llm_endpoint, llm_model)
 
-    # --- Step 3: Regex detection -------------------------------------------
-    emit("regex_detect", "Running regex safety net")
-    custom_patterns = config.get("custom_regex_patterns", [])
-    regex_findings = run_regex_engine(all_text, custom_patterns)
-    logger.info("Regex returned %d finding(s)", len(regex_findings))
+        llm_client = LLMClient(endpoint=llm_endpoint, model=llm_model)
+        try:
+            llm_findings = llm_client.detect_pii(all_text, progress_cb=emit)
+            logger.info("LLM returned %d finding(s)", len(llm_findings))
+            if llm_client.last_warning:
+                logger.warning("LLM response warning: %s", llm_client.last_warning)
+                result.warnings.append(llm_client.last_warning)
+        except LLMUnreachableError as exc:
+            logger.warning("LLM unreachable — falling back to regex-only: %s", exc)
+            result.warnings.append(
+                f"LLM fallback: {exc}. Falling back to regex-only detection."
+            )
 
-    # --- Step 4: Merge + build mapping -------------------------------------
+    # --- Step 4: Regex detection (full and names_patterns tiers) -----------
+    regex_findings = []
+    if tier in ("full", "names_patterns"):
+        emit("regex_detect", "Running regex safety net")
+        custom_patterns = config.get("custom_regex_patterns", [])
+        regex_findings = run_regex_engine(all_text, custom_patterns)
+        logger.info("Regex returned %d finding(s)", len(regex_findings))
+
+    # --- Step 5: Build mapping ---------------------------------------------
     emit("map", "Building replacement mapping")
-    all_findings = llm_findings + regex_findings
-    logger.info(
-        "Merging %d LLM + %d regex = %d total finding(s)",
-        len(llm_findings), len(regex_findings), len(all_findings),
-    )
-    mapping = build_mapping(all_findings)
+
+    if tier == "full":
+        all_findings = llm_findings + regex_findings
+        logger.info(
+            "Merging %d LLM + %d regex = %d total finding(s)",
+            len(llm_findings), len(regex_findings), len(all_findings),
+        )
+        mapping = build_mapping(all_findings)
+
+    elif tier == "names":
+        if not roster_entries:
+            result.warnings.append(
+                "No roster provided for 'names' tier — no name replacements will be made."
+            )
+            mapping = MappingTable(entries=[])
+        else:
+            from backend.services.name_matcher import build_name_mapping
+            mapping = build_name_mapping(roster_entries)
+
+    else:  # names_patterns
+        if not roster_entries:
+            result.warnings.append(
+                "No roster provided for 'names_patterns' tier — "
+                "only regex patterns will be replaced."
+            )
+            name_mapping = MappingTable(entries=[])
+        else:
+            from backend.services.name_matcher import build_name_mapping
+            name_mapping = build_name_mapping(roster_entries)
+        regex_mapping = build_mapping(regex_findings)
+        mapping = MappingTable(entries=name_mapping.entries + regex_mapping.entries)
+
     logger.info("Mapping table: %d unique entr(ies)", len(mapping.entries))
 
-    # --- Step 5: Apply replacements and write format-preserving output ------
+    # --- Step 6: Apply replacements and write format-preserving output ------
     emit("replace", "Applying replacements")
 
     if output_dir:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     for doc, src_path in processable:
-        # Text-level replacement (used for in-memory display / review)
         replaced = apply_replacements(doc.body_text, mapping)
 
         result.files.append(FileResult(
@@ -193,15 +236,13 @@ def run_pipeline(
             ],
         ))
 
-        # Write format-preserving output file when output_dir is provided.
-        # Always write even if mapping is empty so image stripping can operate.
         if output_dir:
             _write_output_file(src_path, doc.filename, Path(output_dir), mapping)
 
     result.mapping = mapping
 
-    logger.info("Pipeline complete — job=%s entries=%d warnings=%d",
-                job_id, len(mapping.entries), len(result.warnings))
+    logger.info("Pipeline complete — job=%s entries=%d warnings=%d tier=%s",
+                job_id, len(mapping.entries), len(result.warnings), tier)
     emit("done", "Pipeline complete")
     return result
 

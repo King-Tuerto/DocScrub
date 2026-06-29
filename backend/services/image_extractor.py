@@ -3,6 +3,7 @@ Image extraction from PDF and DOCX files.
 Returns list[ImageRecord] with bytes and metadata.
 """
 
+import hashlib
 import zipfile
 from pathlib import Path
 from typing import List
@@ -64,6 +65,7 @@ def _extract_pdf_images(path: Path) -> List[ImageRecord]:
                         image_index=index,
                         image_bytes=img_bytes,
                         marked_for_removal=True,
+                        hash=hashlib.sha256(img_bytes).hexdigest(),
                     ))
                     index += 1
             except Exception:
@@ -90,6 +92,7 @@ def _extract_pdf_images(path: Path) -> List[ImageRecord]:
                             image_index=index,
                             image_bytes=img_bytes,
                             marked_for_removal=True,
+                            hash=hashlib.sha256(img_bytes).hexdigest(),
                         ))
                         index += 1
                 except Exception:
@@ -126,6 +129,7 @@ def _extract_docx_images(path: Path) -> List[ImageRecord]:
                         image_index=index,
                         image_bytes=img_bytes,
                         marked_for_removal=True,
+                        hash=hashlib.sha256(img_bytes).hexdigest(),
                     ))
                     index += 1
     except (zipfile.BadZipFile, KeyError):

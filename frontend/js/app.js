@@ -18,6 +18,8 @@ window.DS = {
   config: {
     llm_endpoint: 'http://localhost:11434',
     model: 'llama3.1:8b',
+    tier: 'full',
+    roster_id: null,
   },
 };
 
@@ -73,6 +75,12 @@ const API = {
     });
     if (!r.ok) throw new Error(`PATCH ${path} → ${r.status}`);
     return r.json();
+  },
+
+  async delete(path) {
+    const r = await fetch(this.base + path, { method: 'DELETE' });
+    if (!r.ok && r.status !== 204) throw new Error(`DELETE ${path} → ${r.status}`);
+    return r;
   },
 
   async postForm(path, formData) {

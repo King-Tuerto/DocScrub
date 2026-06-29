@@ -155,3 +155,8 @@ def reverse_replacements(text: str, mapping_table: MappingTable) -> str:
 
     result_parts.append(text[cursor:])
     return "".join(result_parts)
+
+
+def revert_placeholder(text: str, placeholder: str, original: str) -> str:
+    """Replace all occurrences of placeholder with original in text."""
+    return text.replace(placeholder, original)

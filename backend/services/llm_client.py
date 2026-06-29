@@ -127,9 +127,9 @@ class LLMClient:
         self,
         endpoint: str,
         model: str,
-        chunk_tokens: int = 2048,
+        chunk_tokens: int = 1000,
         overlap_tokens: int = 200,
-        timeout: float = 120.0,
+        timeout: float = 300.0,
     ):
         self.endpoint = endpoint.rstrip("/")
         self.model = model
@@ -142,18 +142,23 @@ class LLMClient:
     # Public API
     # ------------------------------------------------------------------
 
-    def detect_pii(self, text: str) -> List[PIIFinding]:
+    def detect_pii(self, text: str, progress_cb=None) -> List[PIIFinding]:
         """
         Detect PII in text. Chunks the input if needed. Returns a deduplicated
         list of PIIFinding objects with source="llm". Sets self.last_warning if
         the LLM returns non-parseable output.
+
+        progress_cb(step, message) is called once per chunk if provided.
         """
         self.last_warning = None
         chunks = self._chunk_text(text)
         seen: set = set()
         findings: List[PIIFinding] = []
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks, start=1):
+            logger.info("Processing chunk %d/%d (%d chars)", i, len(chunks), len(chunk))
+            if progress_cb:
+                progress_cb("llm_detect", f"Processing chunk {i}/{len(chunks)}")
             raw = self._call_chat(chunk)
             chunk_findings = self._parse_response(raw)
             for f in chunk_findings:

@@ -9,9 +9,11 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from backend.db.database import (
+    delete_mapping_entry,
     get_db,
     get_file_records,
     get_job,
@@ -176,6 +178,26 @@ def add_mapping_entry(job_id: str, body: MappingCreate, request: Request):
             if entry["placeholder"] == placeholder:
                 return entry
         return new_entry
+    finally:
+        conn.close()
+
+
+@router.delete("/jobs/{job_id}/mapping/{placeholder:path}", status_code=204)
+def delete_mapping_entry_endpoint(job_id: str, placeholder: str, request: Request):
+    """Delete a mapping entry by placeholder. Returns 204. GET /review will revert the text."""
+    db_path: Path = request.app.state.db_path
+    conn = get_db(db_path)
+    try:
+        job = get_job(conn, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail=f"Job {job_id!r} not found")
+
+        current = get_mappings(conn, job_id)
+        if not any(e["placeholder"] == placeholder for e in current):
+            raise HTTPException(status_code=404, detail=f"Placeholder {placeholder!r} not found")
+
+        delete_mapping_entry(conn, job_id, placeholder)
+        return Response(status_code=204)
     finally:
         conn.close()
 

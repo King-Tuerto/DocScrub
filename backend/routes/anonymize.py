@@ -5,7 +5,7 @@ Anonymize route — POST /jobs/{job_id}/anonymize
 
 import json
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -16,7 +16,9 @@ from backend.db.database import (
     get_file_records,
     get_images_for_job,
     get_job,
+    get_roster_entries,
     save_mappings,
+    set_job_tier,
     update_job_status,
 )
 from backend.services.pipeline import run_pipeline
@@ -27,6 +29,8 @@ router = APIRouter()
 class AnonymizeBody(BaseModel):
     model: Optional[str] = None
     llm_endpoint: Optional[str] = None
+    tier: Optional[Literal["full", "names", "names_patterns"]] = None
+    roster_id: Optional[str] = None
 
 
 def _strip_job_images(conn, job_id: str, output_dir: Path) -> None:
@@ -93,6 +97,10 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None, overrides: O
             config["default_model"] = overrides["model"]
         if overrides.get("llm_endpoint"):
             config["llm_endpoint"] = overrides["llm_endpoint"]
+
+    tier = (overrides or {}).get("tier") or "full"
+    roster_id = (overrides or {}).get("roster_id")
+
     db_path: Path = request.app.state.db_path
     output_dir = Path(config.get("output_directory", "./output"))
 
@@ -101,6 +109,22 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None, overrides: O
         job = get_job(conn, job_id)
         if job is None:
             raise HTTPException(status_code=404, detail=f"Job {job_id!r} not found")
+
+        # Load roster entries if a roster_id was provided
+        roster_entries = None
+        if roster_id:
+            raw_entries = get_roster_entries(conn, roster_id)
+            from backend.services.roster_parser import RosterEntry
+            roster_entries = [
+                RosterEntry(
+                    first_name=e.get("first_name"),
+                    last_name=e.get("last_name"),
+                    preferred_name=e.get("preferred_name"),
+                    student_id=e.get("student_id"),
+                    email=e.get("email"),
+                )
+                for e in raw_entries
+            ]
 
         file_records = get_file_records(conn, job_id)
         file_paths = _get_staged_paths(output_dir, job_id, file_records)
@@ -116,7 +140,12 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None, overrides: O
             config=config,
             progress_cb=progress_cb,
             output_dir=output_job_dir,
+            roster_entries=roster_entries,
+            tier=tier,
         )
+
+        # Persist the tier used for this run
+        set_job_tier(conn, job_id, tier)
 
         # Strip images that the user marked for removal (no-op if user skipped image review)
         _strip_job_images(conn, job_id, output_job_dir)

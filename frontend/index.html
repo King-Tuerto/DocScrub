@@ -60,6 +60,28 @@
   <p>Checked images will be removed from the anonymized output.
      Uncheck charts and diagrams you want to keep.</p>
 
+  <!-- Tier selector -->
+  <div id="tier-panel" class="tier-panel">
+    <label for="tier-select">Anonymization Tier</label>
+    <select id="tier-select" name="tier">
+      <option value="full">Full Scan (LLM + Regex)</option>
+      <option value="names_patterns">Names + Patterns (roster + regex, no LLM)</option>
+      <option value="names">Names Only (roster only, no LLM)</option>
+    </select>
+  </div>
+
+  <!-- Roster panel (Tiers 1-2) -->
+  <div id="roster-panel" class="roster-panel">
+    <label for="roster-select">Roster</label>
+    <select id="roster-select" name="roster_id">
+      <option value="">— select a roster —</option>
+    </select>
+    <label class="roster-upload-label">
+      Upload roster CSV
+      <input id="roster-file-input" type="file" accept=".csv,.xlsx" hidden />
+    </label>
+  </div>
+
   <div class="image-review-controls">
     <button id="select-all" data-action="select-all">Select All for Removal</button>
     <button id="deselect-all" data-action="deselect-all">Deselect All</button>

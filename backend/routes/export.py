@@ -34,6 +34,12 @@ def export_mapping(job_id: str, request: Request):
         conn.close()
 
 
+@router.post("/jobs/{job_id}/export")
+def export_files_post(job_id: str, request: Request):
+    """POST alias — allows callers to trigger export without a body."""
+    return _do_export(job_id, request)
+
+
 @router.get("/jobs/{job_id}/export")
 def export_files(job_id: str, request: Request):
     """
@@ -41,6 +47,10 @@ def export_files(job_id: str, request: Request):
     Single file → returns the file directly.
     Multiple files → returns a ZIP archive.
     """
+    return _do_export(job_id, request)
+
+
+def _do_export(job_id: str, request: Request):
     config: dict = request.app.state.config
     db_path: Path = request.app.state.db_path
     output_dir = Path(config.get("output_directory", "./output"))

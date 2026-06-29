@@ -101,6 +101,7 @@ class ImageRecord(BaseModel):
     marked_for_removal: bool = True
     image_bytes:        Optional[bytes] = None
     id:                 str = ""
+    hash:               Optional[str] = None
 
     def model_post_init(self, __context):
         if not self.id:

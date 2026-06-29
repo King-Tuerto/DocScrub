@@ -160,10 +160,47 @@ function setAllChecked(checked) {
 }
 
 // ---------------------------------------------------------------------------
+// Tier / roster controls
+// ---------------------------------------------------------------------------
+
+function updateScrubBtn() {
+  const scrubBtn = document.getElementById('btn-scrub');
+  if (!scrubBtn) return;
+  const tierSelect   = document.getElementById('tier-select');
+  const rosterSelect = document.getElementById('roster-select');
+  const tier     = tierSelect   ? tierSelect.value   : 'full';
+  const rosterId = rosterSelect ? rosterSelect.value : '';
+  const needsRoster = tier === 'names' || tier === 'names_patterns';
+  scrubBtn.disabled = needsRoster && !rosterId;
+}
+
+async function loadRosters() {
+  const sel = document.getElementById('roster-select');
+  if (!sel) return;
+  try {
+    const rosters = await API.get('/rosters');
+    sel.innerHTML = '<option value="">— select a roster —</option>';
+    (rosters || []).forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id;
+      opt.textContent = `${r.name} (${r.entry_count || 0} entries)`;
+      sel.appendChild(opt);
+    });
+  } catch { /* roster endpoint optional */ }
+  updateScrubBtn();
+}
+
+// ---------------------------------------------------------------------------
 // Start anonymisation
 // ---------------------------------------------------------------------------
 
 async function startScrub() {
+  // Read tier and roster_id from the UI controls
+  const tierSelect   = document.getElementById('tier-select');
+  const rosterSelect = document.getElementById('roster-select');
+  DS.config.tier      = tierSelect   ? tierSelect.value   : 'full';
+  DS.config.roster_id = rosterSelect ? (rosterSelect.value || null) : null;
+
   showScreen('screen-processing');
   document.getElementById('step-indicator').textContent = 'Starting…';
   document.getElementById('progress-bars').innerHTML = '';
@@ -217,7 +254,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Scrub button
   scrubBtn?.addEventListener('click', startScrub);
 
+  // Tier / roster change → update scrub button state
+  document.getElementById('tier-select')
+    ?.addEventListener('change', updateScrubBtn);
+  document.getElementById('roster-select')
+    ?.addEventListener('change', updateScrubBtn);
+
   // Select-all toggles
   selAll?.addEventListener('click', () => setAllChecked(true));
   deselAll?.addEventListener('click', () => setAllChecked(false));
+
+  // Load rosters when image review screen is shown
+  loadRosters();
 });

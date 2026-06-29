@@ -26,7 +26,12 @@ async function streamAnonymize(jobId) {
     fetch(`/jobs/${jobId}/anonymize/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: DS.config.model, llm_endpoint: DS.config.llm_endpoint }),
+      body: JSON.stringify({
+        model: DS.config.model,
+        llm_endpoint: DS.config.llm_endpoint,
+        tier: DS.config.tier || 'full',
+        roster_id: DS.config.roster_id || null,
+      }),
     })
       .then(resp => {
         if (!resp.ok) return reject(new Error(`${resp.status}`));
@@ -217,7 +222,10 @@ function renderMappingTable(mapping) {
           <input class="orig-input" type="text" value="${escHtml(entry.original)}" hidden /></td>
       <td><span class="pii-badge" style="background:${PII_COLORS[entry.pii_type]||'#e2e8f0'}">${escHtml(entry.pii_type)}</span></td>
       <td>${escHtml(entry.source || '')}</td>
-      <td><button class="btn-edit" data-ph="${escHtml(entry.placeholder)}">Edit</button></td>
+      <td>
+        <button class="btn-edit" data-ph="${escHtml(entry.placeholder)}">Edit</button>
+        <button class="btn-delete" data-ph="${escHtml(entry.placeholder)}">Delete</button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
@@ -228,6 +236,11 @@ function renderMappingTable(mapping) {
   // Attach edit handlers
   container.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => startEditEntry(btn.dataset.ph));
+  });
+
+  // Attach delete handlers
+  container.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', () => deleteMapping(btn.dataset.ph));
   });
 }
 
@@ -299,6 +312,26 @@ async function addManualPII() {
     toast(`Added ${entry.placeholder} for "${entry.original}"`, 'success');
   } catch (err) {
     toast(`Failed to add PII: ${err.message}`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mapping delete
+// ---------------------------------------------------------------------------
+
+async function deleteMapping(placeholder) {
+  if (!confirm(`Delete mapping for ${placeholder}? The original text will reappear in the preview.`)) return;
+  try {
+    await API.delete(`/jobs/${DS.jobId}/mapping/${encodeURIComponent(placeholder)}`);
+    // Reload review data to reflect the revert
+    const data = await API.get(`/jobs/${DS.jobId}/review`);
+    DS.fileResults = data.files || [];
+    DS.mapping     = data.mapping || [];
+    renderDiffView(DS.fileResults);
+    renderMappingTable(DS.mapping);
+    toast(`Mapping deleted — original text restored`, 'success');
+  } catch (err) {
+    toast(`Delete failed: ${err.message}`, 'error');
   }
 }
 
