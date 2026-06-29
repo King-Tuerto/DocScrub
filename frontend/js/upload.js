@@ -1,8 +1,8 @@
 /**
  * DocScrub — upload screen logic
  *
- * Owns: drag-drop zone, file picker, queued-file list, upload call,
- *       image review screen (thumbnail grid + checkboxes).
+ * Owns: tier card selection, roster loading, drag-drop zone, file picker,
+ *       queued-file list, upload call, image review screen.
  */
 'use strict';
 
@@ -44,7 +44,6 @@ function renderFileList() {
     ul.appendChild(li);
   });
 
-  // Remove buttons
   ul.querySelectorAll('.btn-remove').forEach(btn => {
     btn.addEventListener('click', () => {
       queuedFiles.splice(Number(btn.dataset.idx), 1);
@@ -58,7 +57,8 @@ function renderFileList() {
 
 function updateNextBtn() {
   const btn = document.getElementById('btn-next');
-  if (btn) btn.disabled = queuedFiles.length === 0;
+  if (!btn) return;
+  btn.disabled = queuedFiles.length === 0 || !DS.config.tier;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +72,6 @@ function addFiles(fileList) {
       toast(`${f.name}: only PDF and DOCX are supported`, 'warn');
       return false;
     }
-    // Deduplicate by name
     return !queuedFiles.some(q => q.name === f.name);
   });
   queuedFiles.push(...newFiles);
@@ -96,13 +95,12 @@ async function uploadFiles() {
     DS.jobId = data.job_id;
     DS.files = data.files;
 
-    // Check for images (kick off extraction in background)
     showScreen('screen-image-review');
     await loadImages();
   } catch (err) {
     toast(`Upload failed: ${err.message}`, 'error');
     btn.disabled = false;
-    btn.textContent = 'Next →';
+    btn.textContent = 'Continue →';
   }
 }
 
@@ -129,7 +127,6 @@ function renderImageGrid(images) {
 
   if (images.length === 0) {
     grid.innerHTML = '<p class="no-images">No embedded images found in these documents.</p>';
-    // Auto-advance to processing since there's nothing to review
     document.getElementById('btn-scrub').textContent = 'Proceed to Anonymize';
     return;
   }
@@ -152,7 +149,7 @@ function renderImageGrid(images) {
 }
 
 // ---------------------------------------------------------------------------
-// Wire: select-all / deselect-all
+// Select-all / deselect-all
 // ---------------------------------------------------------------------------
 
 function setAllChecked(checked) {
@@ -160,26 +157,58 @@ function setAllChecked(checked) {
 }
 
 // ---------------------------------------------------------------------------
-// Tier / roster controls
+// Tier card selection
+// ---------------------------------------------------------------------------
+
+function selectTier(tier) {
+  DS.config.tier = tier;
+
+  document.querySelectorAll('.tier-card').forEach(card => {
+    const active = card.dataset.tier === tier;
+    card.classList.toggle('selected', active);
+    card.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+
+  const rosterSection = document.getElementById('roster-section');
+  const llmSection    = document.getElementById('llm-section');
+  const needsRoster   = tier === 'names' || tier === 'names_patterns';
+
+  if (rosterSection) rosterSection.hidden = !needsRoster;
+  if (llmSection)    llmSection.hidden    = tier !== 'full';
+
+  if (tier === 'full') {
+    const epInput = document.getElementById('llm-endpoint-inline');
+    if (epInput && !epInput.value) epInput.value = DS.config.llm_endpoint;
+    loadModelsInline();
+  }
+
+  updateNextBtn();
+  updateScrubBtn();
+}
+
+// ---------------------------------------------------------------------------
+// Scrub button state (Screen 2)
 // ---------------------------------------------------------------------------
 
 function updateScrubBtn() {
   const scrubBtn = document.getElementById('btn-scrub');
   if (!scrubBtn) return;
-  const tierSelect   = document.getElementById('tier-select');
-  const rosterSelect = document.getElementById('roster-select');
-  const tier     = tierSelect   ? tierSelect.value   : 'full';
-  const rosterId = rosterSelect ? rosterSelect.value : '';
+  const tier      = DS.config.tier || 'full';
+  const rosterId  = DS.config.roster_id || '';
   const needsRoster = tier === 'names' || tier === 'names_patterns';
   scrubBtn.disabled = needsRoster && !rosterId;
 }
+
+// ---------------------------------------------------------------------------
+// Roster loading
+// ---------------------------------------------------------------------------
 
 async function loadRosters(selectId) {
   const sel = document.getElementById('roster-select');
   if (!sel) return;
   try {
     const rosters = await API.get('/rosters');
-    sel.innerHTML = '<option value="">— select a roster —</option>';
+    sel.innerHTML = '<option value="">— select a saved roster —</option>';
     (rosters || []).forEach(r => {
       const opt = document.createElement('option');
       opt.value = r.id;
@@ -203,6 +232,9 @@ async function uploadRosterFile(file) {
     const result = await API.postForm(`/rosters/${roster.id}/entries`, fd);
 
     await loadRosters(roster.id);
+    DS.config.roster_id = roster.id;
+    updateScrubBtn();
+    updateNextBtn();
     toast(`Roster "${name}" loaded — ${result.count} entries`, 'success');
   } catch (err) {
     toast(`Roster upload failed: ${err.message}`, 'error');
@@ -212,16 +244,34 @@ async function uploadRosterFile(file) {
 }
 
 // ---------------------------------------------------------------------------
+// LLM model loading (inline section)
+// ---------------------------------------------------------------------------
+
+async function loadModelsInline() {
+  const sel = document.getElementById('model-select-inline');
+  if (!sel) return;
+  try {
+    const data   = await API.get('/models');
+    const models = data.models || [];
+    if (models.length > 0) {
+      sel.innerHTML = '';
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === DS.config.model) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+  } catch { /* keep default option */ }
+}
+
+// ---------------------------------------------------------------------------
 // Start anonymisation
 // ---------------------------------------------------------------------------
 
 async function startScrub() {
-  // Read tier and roster_id from the UI controls
-  const tierSelect   = document.getElementById('tier-select');
-  const rosterSelect = document.getElementById('roster-select');
-  DS.config.tier      = tierSelect   ? tierSelect.value   : 'full';
-  DS.config.roster_id = rosterSelect ? (rosterSelect.value || null) : null;
-
+  // tier and roster_id already set in DS.config from Screen 1
   showScreen('screen-processing');
   document.getElementById('step-indicator').textContent = 'Starting…';
   document.getElementById('progress-bars').innerHTML = '';
@@ -246,6 +296,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const selAll    = document.getElementById('select-all');
   const deselAll  = document.getElementById('deselect-all');
 
+  // Tier cards
+  document.querySelectorAll('.tier-card').forEach(card => {
+    const activate = () => selectTier(card.dataset.tier);
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+  });
+
+  // Roster select → sync DS.config
+  document.getElementById('roster-select')?.addEventListener('change', e => {
+    DS.config.roster_id = e.target.value || null;
+    updateScrubBtn();
+    updateNextBtn();
+  });
+
+  // Roster CSV upload
+  document.getElementById('roster-file-input')?.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) uploadRosterFile(file);
+  });
+
+  // Inline LLM fields → sync DS.config
+  document.getElementById('llm-endpoint-inline')?.addEventListener('change', e => {
+    DS.config.llm_endpoint = e.target.value.trim() || 'http://localhost:11434';
+  });
+  document.getElementById('model-select-inline')?.addEventListener('change', e => {
+    DS.config.model = e.target.value;
+  });
+
+  // Check Ollama connection
+  document.getElementById('btn-check-ollama')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-check-ollama');
+    const prev = btn.textContent;
+    btn.textContent = 'Checking…';
+    btn.disabled = true;
+    try {
+      await API.get('/models');
+      toast('Ollama is running and reachable ✓', 'success');
+    } catch {
+      toast('Cannot reach Ollama — make sure it is running on ' +
+            (DS.config.llm_endpoint || 'http://localhost:11434'), 'error');
+    } finally {
+      btn.textContent = prev;
+      btn.disabled = false;
+    }
+  });
+
   // Drag-drop
   if (dropZone) {
     dropZone.addEventListener('dragover', e => {
@@ -258,7 +356,9 @@ document.addEventListener('DOMContentLoaded', () => {
       dropZone.classList.remove('dragover');
       addFiles(e.dataTransfer.files);
     });
-    dropZone.addEventListener('click', () => fileInput?.click());
+    dropZone.addEventListener('click', e => {
+      if (!e.target.closest('label')) fileInput?.click();
+    });
   }
 
   // File picker
@@ -269,29 +369,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Next button
+  // Next / Scrub buttons
   nextBtn?.addEventListener('click', uploadFiles);
-
-  // Scrub button
   scrubBtn?.addEventListener('click', startScrub);
-
-  // Tier / roster change → update scrub button state
-  document.getElementById('tier-select')
-    ?.addEventListener('change', updateScrubBtn);
-  document.getElementById('roster-select')
-    ?.addEventListener('change', updateScrubBtn);
-
-  // Roster CSV upload
-  document.getElementById('roster-file-input')
-    ?.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (file) uploadRosterFile(file);
-    });
 
   // Select-all toggles
   selAll?.addEventListener('click', () => setAllChecked(true));
   deselAll?.addEventListener('click', () => setAllChecked(false));
 
-  // Load rosters when image review screen is shown
+  // Pre-load roster list (silent — backend may not be running yet)
   loadRosters();
 });
