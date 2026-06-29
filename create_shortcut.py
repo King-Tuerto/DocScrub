@@ -5,6 +5,9 @@ Create a "DocScrub" shortcut on the user's Desktop.
 Called by setup.bat. Uses PowerShell's WScript.Shell COM object so
 no third-party libraries are needed.
 
+The shortcut launches start.bat in a cmd window. The terminal stays visible
+while the server is running — closing it stops the server cleanly.
+
 Exit code 0 = success, 1 = failure.
 """
 import os
@@ -16,25 +19,23 @@ from pathlib import Path
 def main() -> int:
     root = Path(__file__).parent.resolve()
 
-    # Prefer pythonw.exe (no console window) over python.exe
-    pythonw = Path(sys.executable).parent / "pythonw.exe"
-    if not pythonw.exists():
-        pythonw = Path(sys.executable)
-
+    cmd = Path(os.environ.get("ComSpec", r"C:\Windows\System32\cmd.exe"))
+    start_bat = root / "start.bat"
     desktop = Path(os.path.expandvars("%USERPROFILE%")) / "Desktop"
     shortcut_path = desktop / "DocScrub.lnk"
-    launcher = root / "launcher.py"
     icon = root / "assets" / "docscrub.ico"
 
-    # Build PowerShell script as a string — avoids all cmd.exe escaping issues
+    # /c runs the script and closes the window when done (after the pause)
+    arguments = f'/c ""{start_bat}""'
+
     ps = f"""
 $ws = New-Object -ComObject WScript.Shell
 $s  = $ws.CreateShortcut('{shortcut_path}')
-$s.TargetPath      = '{pythonw}'
-$s.Arguments       = '"{launcher}"'
+$s.TargetPath       = '{cmd}'
+$s.Arguments        = '{arguments}'
 $s.WorkingDirectory = '{root}'
-$s.IconLocation    = '{icon}'
-$s.Description     = 'DocScrub — Document Anonymizer'
+$s.IconLocation     = '{icon}'
+$s.Description      = 'DocScrub -- Document Anonymizer'
 $s.Save()
 """
 

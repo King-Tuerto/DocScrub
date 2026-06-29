@@ -26,7 +26,6 @@ Covers five real-world bugs:
 """
 
 import io
-import socket
 import sqlite3
 import subprocess
 import tempfile
@@ -358,61 +357,10 @@ class TestDocxRoundTrip:
 
 
 # ---------------------------------------------------------------------------
-# Issue 3 — port check reliability
+# Issue 3 — launcher removed (Piece 15)
+# Port-check logic lived in launcher.py which has been deleted in favour of
+# the simpler start.bat approach.  These tests are intentionally absent.
 # ---------------------------------------------------------------------------
-
-class TestPortCheck:
-    def test_port_not_in_use_returns_false(self):
-        """On an unused port, _port_in_use() must return False without raising."""
-        # Import the function directly from the launcher module
-        import importlib.util
-        import sys
-        from pathlib import Path
-
-        spec = importlib.util.spec_from_file_location(
-            "launcher",
-            Path(__file__).parent.parent / "launcher.py",
-        )
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-
-        # Override PORT to something that's almost certainly free
-        original_port = launcher.PORT
-        launcher.PORT = 19876  # unlikely to be in use
-        try:
-            result = launcher._port_in_use()
-        finally:
-            launcher.PORT = original_port
-
-        assert result is False
-
-    def test_port_in_use_returns_true(self):
-        """When a server is listening on PORT, _port_in_use() must return True."""
-        import importlib.util
-        from pathlib import Path
-
-        spec = importlib.util.spec_from_file_location(
-            "launcher2",
-            Path(__file__).parent.parent / "launcher.py",
-        )
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-
-        # Bind a real socket to a free port
-        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind(("127.0.0.1", 0))
-        srv.listen(1)
-        free_port = srv.getsockname()[1]
-
-        launcher.PORT = free_port
-        try:
-            result = launcher._port_in_use()
-        finally:
-            srv.close()
-            launcher.PORT = 8000
-
-        assert result is True
 
 
 # ---------------------------------------------------------------------------

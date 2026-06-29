@@ -28,12 +28,13 @@ Setup takes about one minute on a normal internet connection. You only need to r
 
 ## Usage
 
-1. Double-click the **DocScrub** icon on your Desktop
-2. Your browser opens automatically at `http://127.0.0.1:8000`
-3. Drag your PDF or Word files onto the upload zone and follow the steps
-4. Click **End Session** (bottom-right of any screen) when you're done — the server stops and you can close the tab
+1. Double-click the **DocScrub** icon on your Desktop (or double-click `start.bat`)
+2. A terminal window opens — DocScrub initialises the database and starts the server
+3. Your browser opens automatically at `http://127.0.0.1:8000`
+4. Drag your PDF or Word files onto the upload zone and follow the steps
+5. **Close the terminal window** to stop the server when you're done
 
-> **No Desktop shortcut yet?** You can also double-click `start.bat` inside the DocScrub folder.
+> You can also click **End Session** in the browser (bottom-right of any screen) — this stops the server and shows a confirmation message in the tab.
 
 ---
 
@@ -136,11 +137,12 @@ The mapping JSON stays on your machine. Guard it like the original document.
 
 | Problem | Fix |
 |---|---|
-| "Python is not installed" during setup | Install Python 3.11+ from python.org; tick "Add Python to PATH" |
+| "Python is not installed" or startup fails | Install Python 3.11+ from python.org; tick "Add Python to PATH"; re-run `setup.bat` |
 | Browser doesn't open automatically | Navigate to `http://127.0.0.1:8000` manually |
 | "LLM not reachable" warning | Start Ollama (`ollama serve`) or switch to Names/Names+Patterns tier |
 | Scanned PDF shows no text | DocScrub requires a text layer; OCR is not supported in this release |
 | Port 8000 already in use | Another service is using that port; stop it or change the port in `config.json` |
+| Terminal window closes immediately | An error occurred during startup — re-open the terminal and run `start.bat` to see the error message |
 
 ---
 
