@@ -146,6 +146,12 @@ The mapping JSON stays on your machine. Guard it like the original document.
 
 ---
 
+## Verifying an update
+
+After installing an update, double-click **`smoke_test.bat`** to confirm everything still works end-to-end. It starts a fresh server, uploads a test document, runs Tier 2 anonymization, checks the output, and prints **ALL TESTS PASSED** or a list of failures. No Ollama required — Tier 2 is regex-only.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
