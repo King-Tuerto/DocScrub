@@ -16,25 +16,24 @@ DocScrub is a local-first document anonymizer for Windows. It strips personally 
 
 ## Install
 
-1. Download and unzip `DocScrub.zip`
+**Download/clone → run setup.bat → done.** That's the entire install.
+
+1. Download and unzip `DocScrub.zip` — or clone this repo
 2. Double-click **`setup.bat`**
-3. A **DocScrub** shortcut appears on your Desktop — that's it
+3. A **DocScrub** shortcut appears on your Desktop
+
+`setup.bat` installs all Python dependencies, generates the app icon, and creates the shortcut. You only need to run it once.
 
 > **Windows SmartScreen warning?** Click **More info → Run anyway**. DocScrub runs entirely on your machine and makes no network calls except to your local LLM.
-
-Setup takes about one minute on a normal internet connection. You only need to run it once.
 
 ---
 
 ## Usage
 
 1. Double-click the **DocScrub** icon on your Desktop (or double-click `start.bat`)
-2. A terminal window opens — DocScrub initialises the database and starts the server
-3. Your browser opens automatically at `http://127.0.0.1:8000`
-4. Drag your PDF or Word files onto the upload zone and follow the steps
-5. **Close the terminal window** to stop the server when you're done
-
-> You can also click **End Session** in the browser (bottom-right of any screen) — this stops the server and shows a confirmation message in the tab.
+2. DocScrub starts minimised in your taskbar and your browser opens automatically
+3. Drag your PDF or Word files onto the upload zone and follow the steps
+4. When you're done: right-click **DocScrub** in your taskbar and close it to stop the server, or click **End Session** in the browser
 
 ---
 
@@ -142,7 +141,7 @@ The mapping JSON stays on your machine. Guard it like the original document.
 | "LLM not reachable" warning | Start Ollama (`ollama serve`) or switch to Names/Names+Patterns tier |
 | Scanned PDF shows no text | DocScrub requires a text layer; OCR is not supported in this release |
 | Port 8000 already in use | Another service is using that port; stop it or change the port in `config.json` |
-| Terminal window closes immediately | An error occurred during startup — re-open the terminal and run `start.bat` to see the error message |
+| DocScrub disappears from taskbar immediately | An error occurred during startup — double-click `start.bat` directly to see the error message in the terminal |
 
 ---
 
