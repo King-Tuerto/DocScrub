@@ -29,11 +29,14 @@ PORT = 8000
 # ---------------------------------------------------------------------------
 
 def _port_in_use() -> bool:
-    try:
-        with socket.create_connection(("127.0.0.1", PORT), timeout=0.3):
-            return True
-    except OSError:
-        return False
+    """Return True if something is already listening on PORT."""
+    for _ in range(3):
+        try:
+            with socket.create_connection(("127.0.0.1", PORT), timeout=1.0):
+                return True
+        except OSError:
+            pass
+    return False
 
 
 def _start_server() -> subprocess.Popen:
@@ -124,6 +127,10 @@ def _run_tk_window(proc: subprocess.Popen) -> None:
 
     def on_close() -> None:
         proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)
@@ -162,7 +169,12 @@ def main() -> None:
     except ImportError:
         _run_console(proc)
 
-    proc.wait()
+    # Ensure the process is gone — on_close may have already killed it
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 if __name__ == "__main__":

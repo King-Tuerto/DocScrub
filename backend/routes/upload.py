@@ -44,7 +44,7 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
     try:
         job_id = create_job(conn, name=f"job-{uuid.uuid4().hex[:8]}")
 
-        output_dir = Path(config.get("output_directory", "./output"))
+        output_dir: Path = request.app.state.output_dir
         staging_dir = output_dir / job_id / "input"
         staging_dir.mkdir(parents=True, exist_ok=True)
 

@@ -92,16 +92,80 @@ def write_reidentified_docx(input_path: Path, output_path: Path, mapping_table) 
 
 
 def _process_docx(input_path: Path, output_path: Path, lookup: Dict[str, str]) -> None:
-    from docx import Document
+    """
+    Write a modified copy of the DOCX by operating at the ZIP/XML level.
 
-    doc = Document(str(input_path))
+    This preserves *every* part of the original archive (charts, embedded OLE
+    objects, custom XML, themes, etc.) — python-docx's high-level Document.save()
+    only writes the parts it understands and silently drops the rest, which makes
+    complex Word documents unopenable after a round-trip.
 
-    if lookup:
-        # Sort pairs longest-first for correct replacement order
-        sorted_pairs = sorted(lookup.items(), key=lambda x: -len(x[0]))
-        _replace_in_docx(doc, sorted_pairs)
+    Text replacement is performed by iterating all <w:t> nodes inside each <w:p>
+    element, concatenating their text, applying the replacement on the combined
+    string, putting the result in the first <w:t>, and clearing the rest.  This
+    correctly handles PII that Word has split across multiple runs for formatting
+    reasons while keeping paragraph-level and run-level XML structure intact.
+    """
+    import shutil
+    import zipfile
+    from lxml import etree
 
-    doc.save(str(output_path))
+    if not lookup:
+        shutil.copy2(str(input_path), str(output_path))
+        return
+
+    sorted_pairs = sorted(lookup.items(), key=lambda x: -len(x[0]))
+
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+    P_TAG = f"{{{W}}}p"
+    T_TAG = f"{{{W}}}t"
+
+    def _replace_in_xml(data: bytes) -> bytes:
+        try:
+            tree = etree.fromstring(data)
+        except etree.XMLSyntaxError:
+            return data  # unparseable — return unchanged
+
+        for p_elem in tree.iter(P_TAG):
+            t_elems = [e for e in p_elem.iter(T_TAG)]
+            if not t_elems:
+                continue
+            full_text = "".join(t.text or "" for t in t_elems)
+            new_text = full_text
+            for orig, repl in sorted_pairs:
+                if orig in new_text:
+                    new_text = new_text.replace(orig, repl)
+            if new_text == full_text:
+                continue
+            # Concentrate all text in the first <w:t>; clear the rest
+            t_elems[0].text = new_text
+            if new_text.startswith(" ") or new_text.endswith(" "):
+                t_elems[0].set(XML_SPACE, "preserve")
+            for t in t_elems[1:]:
+                t.text = ""
+
+        return etree.tostring(tree, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+    # Parts whose content may contain document text that needs replacement
+    def _is_text_part(name: str) -> bool:
+        return (
+            name == "word/document.xml"
+            or (name.startswith("word/") and name.endswith(".xml") and (
+                "/header" in name
+                or "/footer" in name
+                or "/footnote" in name
+                or "/endnote" in name
+            ))
+        )
+
+    with zipfile.ZipFile(str(input_path), "r") as zin:
+        with zipfile.ZipFile(str(output_path), "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if _is_text_part(item.filename):
+                    data = _replace_in_xml(data)
+                zout.writestr(item, data)
 
 
 # ---------------------------------------------------------------------------
@@ -247,53 +311,3 @@ def _remove_drawing_elements(doc_tree, strip_rids: set) -> None:
             parent.remove(drawing)
 
 
-def _replace_in_docx(doc, sorted_pairs) -> None:
-    """
-    Walk every paragraph in the document (body, tables, headers, footers) and
-    apply text replacements.  Preserves paragraph-level style; per-run formatting
-    is simplified to the first run's style.
-    """
-    def replace_para(para):
-        full_text = para.text
-        if not full_text:
-            return
-        new_text = full_text
-        for orig, repl in sorted_pairs:
-            if orig in new_text:
-                new_text = new_text.replace(orig, repl)
-        if new_text == full_text:
-            return
-        # Rebuild: put everything in the first run, clear the rest
-        runs = para.runs
-        if runs:
-            runs[0].text = new_text
-            for run in runs[1:]:
-                run.text = ""
-        else:
-            para.add_run(new_text)
-
-    # Body paragraphs
-    for para in doc.paragraphs:
-        replace_para(para)
-
-    # Table cells
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    replace_para(para)
-
-    # Headers and footers (all sections)
-    for section in doc.sections:
-        try:
-            if section.header:
-                for para in section.header.paragraphs:
-                    replace_para(para)
-        except Exception:
-            pass
-        try:
-            if section.footer:
-                for para in section.footer.paragraphs:
-                    replace_para(para)
-        except Exception:
-            pass

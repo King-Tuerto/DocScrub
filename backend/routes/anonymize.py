@@ -102,7 +102,7 @@ def _run_and_store(job_id: str, request: Request, progress_cb=None, overrides: O
     roster_id = (overrides or {}).get("roster_id")
 
     db_path: Path = request.app.state.db_path
-    output_dir = Path(config.get("output_directory", "./output"))
+    output_dir: Path = request.app.state.output_dir
 
     conn = get_db(db_path)
     try:

@@ -305,5 +305,5 @@ def _write_output_file(
         elif ext == ".docx":
             write_anonymized_docx(src_path, output_path, mapping)
     except Exception:
-        # Non-fatal: the in-memory anonymized_text is still correct
-        pass
+        # Non-fatal for the in-memory result, but log so it shows up in the server log
+        logger.exception("Failed to write format-preserving output for %s", filename)

@@ -8,6 +8,7 @@ Usage:
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -87,13 +88,20 @@ def create_app(
     db_path = Path(config.get("db_path", "./docscrub.db"))
     if not db_path.is_absolute():
         db_path = _PROJECT_ROOT / db_path
-    init_db(db_path)
+    init_db(db_path)  # belt: runs when factory is called
 
-    app = FastAPI(title="DocScrub", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # suspenders: also run on uvicorn startup so a deleted DB is re-created
+        init_db(app.state.db_path)
+        yield
 
-    # Store config and db_path on app state for use by routes
+    app = FastAPI(title="DocScrub", version="0.1.0", lifespan=lifespan)
+
+    # Store config, db_path, and resolved output_dir on app state
     app.state.config = config
     app.state.db_path = db_path
+    app.state.output_dir = output_dir  # absolute path; routes must use this
 
     # ---------------------------------------------------------------------------
     # API routes (registered before static mount so they take priority)

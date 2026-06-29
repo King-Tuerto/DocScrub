@@ -45,7 +45,7 @@ def review_job(job_id: str, request: Request, restored: bool = False):
     """
     config: dict = request.app.state.config
     db_path: Path = request.app.state.db_path
-    output_dir = Path(config.get("output_directory", "./output"))
+    output_dir: Path = request.app.state.output_dir
 
     conn = get_db(db_path)
     try:
