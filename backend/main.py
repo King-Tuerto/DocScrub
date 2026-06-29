@@ -7,6 +7,7 @@ Usage:
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -53,6 +54,14 @@ def create_app(
     config: Optional[dict] = None,
     frontend_dir: Optional[Path] = None,
 ) -> FastAPI:
+    # Configure application-level logging so pipeline/LLM logs appear in the
+    # terminal alongside uvicorn output.  basicConfig is a no-op if the root
+    # logger already has handlers (e.g. in tests), so this is safe to call here.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
     """
     Create and configure the FastAPI application.
 

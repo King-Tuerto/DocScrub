@@ -271,6 +271,17 @@ class LLMClient:
             logger.warning("LLM response not a list: %s", self.last_warning)
             return []
 
+        # Flatten one level of nesting — some models return [[{...}]] instead of [{...}].
+        # This passes the isinstance(list) check above but all items fail isinstance(dict),
+        # causing a silent empty result with no warning.
+        if data and isinstance(data[0], list):
+            flat = [item for sub in data for item in (sub if isinstance(sub, list) else [sub])]
+            logger.warning(
+                "LLM returned a nested array ([[...]]) — flattening automatically. "
+                "Check system prompt if this recurs."
+            )
+            data = flat
+
         if len(data) == 0:
             return []
 

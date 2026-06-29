@@ -559,3 +559,94 @@ class TestNormalisedFindingsRetained:
         ])
         assert len(findings) == 1
         assert findings[0].confidence.value == "medium"
+
+
+# ---------------------------------------------------------------------------
+# Nested array response — silent bug fix
+# ---------------------------------------------------------------------------
+
+class TestNestedArrayResponse:
+    """LLM returning [[{...}]] instead of [{...}] must be flattened, not silently dropped."""
+
+    def _respond_with(self, httpx_mock, raw_content):
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{LLM_ENDPOINT}/v1/chat/completions",
+            json=make_chat_response(raw_content),
+        )
+        return make_client()
+
+    def test_nested_array_findings_not_dropped(self, httpx_mock):
+        """[[{...}]] must produce the same findings as [{...}]."""
+        inner = [{"text": "Jane Smith", "type": "PERSON", "confidence": "high"}]
+        client = self._respond_with(httpx_mock, json.dumps([inner]))
+        findings = client.detect_pii("Jane Smith works here.")
+        assert len(findings) == 1
+        assert findings[0].text == "Jane Smith"
+        assert findings[0].type.value == "PERSON"
+
+    def test_nested_array_multiple_items_flattened(self, httpx_mock):
+        """Multiple findings in a nested array are all recovered."""
+        inner = [
+            {"text": "Jane Smith", "type": "PERSON", "confidence": "high"},
+            {"text": "Acme Corp",  "type": "ORG",    "confidence": "high"},
+        ]
+        client = self._respond_with(httpx_mock, json.dumps([inner]))
+        findings = client.detect_pii("Jane Smith at Acme Corp.")
+        assert len(findings) == 2
+
+    def test_nested_array_emits_log_warning(self, httpx_mock, caplog):
+        """Flattening a nested array must emit a logger.warning."""
+        import logging
+        inner = [{"text": "Test", "type": "PERSON", "confidence": "high"}]
+        client = self._respond_with(httpx_mock, json.dumps([inner]))
+        with caplog.at_level(logging.WARNING, logger="backend.services.llm_client"):
+            client.detect_pii("Test person here.")
+        assert any("nested" in r.getMessage().lower() for r in caplog.records)
+
+    def test_flat_array_unaffected(self, httpx_mock):
+        """Normal [{...}] response must still work correctly after the fix."""
+        flat = [{"text": "Bob Jones", "type": "PERSON", "confidence": "high"}]
+        client = self._respond_with(httpx_mock, json.dumps(flat))
+        findings = client.detect_pii("Bob Jones was here.")
+        assert len(findings) == 1
+        assert findings[0].text == "Bob Jones"
+
+
+# ---------------------------------------------------------------------------
+# Pipeline logging — INFO lines emitted during run_pipeline
+# ---------------------------------------------------------------------------
+
+class TestPipelineLogging:
+    def test_pipeline_logs_llm_and_regex_counts(
+        self, app_client, sample_pdf_path, mock_llm_endpoint, caplog
+    ):
+        """run_pipeline must log LLM finding count and regex finding count at INFO."""
+        import logging
+        with open(sample_pdf_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (sample_pdf_path.name, fh, "application/pdf")},
+            )
+        job_id = upload.json()["job_id"]
+        with caplog.at_level(logging.INFO, logger="backend.services.pipeline"):
+            app_client.post(f"/jobs/{job_id}/anonymize")
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert "LLM returned" in msgs
+        assert "Regex returned" in msgs
+
+    def test_pipeline_logs_warning_on_llm_unreachable(
+        self, app_client, sample_pdf_path, mock_llm_unreachable, caplog
+    ):
+        """Pipeline must emit a WARNING log when LLM is unreachable."""
+        import logging
+        with open(sample_pdf_path, "rb") as fh:
+            upload = app_client.post(
+                "/upload",
+                files={"files": (sample_pdf_path.name, fh, "application/pdf")},
+            )
+        job_id = upload.json()["job_id"]
+        with caplog.at_level(logging.WARNING, logger="backend.services.pipeline"):
+            app_client.post(f"/jobs/{job_id}/anonymize")
+        msgs = " ".join(r.getMessage() for r in caplog.records).lower()
+        assert "unreachable" in msgs or "fallback" in msgs

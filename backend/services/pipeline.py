@@ -7,11 +7,14 @@ run_pipeline accepts an optional output_dir; when provided it writes
 format-preserving output files (real PDF/DOCX, not plain text).
 """
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 from backend.services.file_reader import extract_file
+
+logger = logging.getLogger(__name__)
 from backend.services.llm_client import LLMClient, LLMUnreachableError
 from backend.services.mapper import MappingTable, build_mapping
 from backend.services.regex_engine import run_regex_engine
@@ -64,6 +67,7 @@ def run_pipeline(
         if progress_cb:
             progress_cb(step, msg)
 
+    logger.info("Pipeline start — job=%s files=%d", job_id, len(file_paths))
     result = PipelineResult(job_id=job_id)
 
     # --- Step 1: Extract text from all files --------------------------------
@@ -105,6 +109,11 @@ def run_pipeline(
 
         processable.append((doc, path))
 
+    skipped = len(file_paths) - len(processable)
+    if skipped:
+        logger.warning("Skipped %d file(s) (scanned or password-protected)", skipped)
+    logger.info("Processable files: %d", len(processable))
+
     # If all files were skipped, return early with what we have
     if not processable:
         return result
@@ -122,17 +131,22 @@ def run_pipeline(
         return " ".join(p for p in parts if p)
 
     all_text = "\n\n".join(_doc_to_combined_text(d) for d in extracted_docs)
+    logger.info("Combined text length: %d chars", len(all_text))
+
+    llm_endpoint = config.get("llm_endpoint", "http://localhost:11434")
+    llm_model = config.get("default_model", "llama3.1:8b")
+    logger.info("LLM detection — endpoint=%s model=%s", llm_endpoint, llm_model)
 
     llm_findings = []
-    llm_client = LLMClient(
-        endpoint=config.get("llm_endpoint", "http://localhost:11434"),
-        model=config.get("default_model", "llama3.1:8b"),
-    )
+    llm_client = LLMClient(endpoint=llm_endpoint, model=llm_model)
     try:
         llm_findings = llm_client.detect_pii(all_text)
+        logger.info("LLM returned %d finding(s)", len(llm_findings))
         if llm_client.last_warning:
+            logger.warning("LLM response warning: %s", llm_client.last_warning)
             result.warnings.append(llm_client.last_warning)
     except LLMUnreachableError as exc:
+        logger.warning("LLM unreachable — falling back to regex-only: %s", exc)
         result.warnings.append(
             f"LLM fallback: {exc}. Falling back to regex-only detection."
         )
@@ -141,11 +155,17 @@ def run_pipeline(
     emit("regex_detect", "Running regex safety net")
     custom_patterns = config.get("custom_regex_patterns", [])
     regex_findings = run_regex_engine(all_text, custom_patterns)
+    logger.info("Regex returned %d finding(s)", len(regex_findings))
 
     # --- Step 4: Merge + build mapping -------------------------------------
     emit("map", "Building replacement mapping")
     all_findings = llm_findings + regex_findings
+    logger.info(
+        "Merging %d LLM + %d regex = %d total finding(s)",
+        len(llm_findings), len(regex_findings), len(all_findings),
+    )
     mapping = build_mapping(all_findings)
+    logger.info("Mapping table: %d unique entr(ies)", len(mapping.entries))
 
     # --- Step 5: Apply replacements and write format-preserving output ------
     emit("replace", "Applying replacements")
@@ -180,6 +200,8 @@ def run_pipeline(
 
     result.mapping = mapping
 
+    logger.info("Pipeline complete — job=%s entries=%d warnings=%d",
+                job_id, len(mapping.entries), len(result.warnings))
     emit("done", "Pipeline complete")
     return result
 
