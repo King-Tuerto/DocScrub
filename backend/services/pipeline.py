@@ -183,7 +183,7 @@ def run_pipeline(
         roster_mapping = MappingTable(entries=[])
         if roster_entries:
             from backend.services.name_matcher import build_name_mapping
-            roster_mapping = build_name_mapping(roster_entries)
+            roster_mapping = build_name_mapping(roster_entries, text=all_text)
             logger.info(
                 "Full tier roster: %d name variants for %d student(s)",
                 len(roster_mapping.entries), len(roster_entries),
@@ -230,7 +230,7 @@ def run_pipeline(
             mapping = MappingTable(entries=[])
         else:
             from backend.services.name_matcher import build_name_mapping
-            mapping = build_name_mapping(roster_entries)
+            mapping = build_name_mapping(roster_entries, text=all_text)
 
     else:  # names_patterns
         if not roster_entries:
@@ -241,7 +241,7 @@ def run_pipeline(
             name_mapping = MappingTable(entries=[])
         else:
             from backend.services.name_matcher import build_name_mapping
-            name_mapping = build_name_mapping(roster_entries)
+            name_mapping = build_name_mapping(roster_entries, text=all_text)
         regex_mapping = build_mapping(regex_findings)
         mapping = MappingTable(entries=name_mapping.entries + regex_mapping.entries)
 
