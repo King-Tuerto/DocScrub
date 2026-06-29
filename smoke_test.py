@@ -2,21 +2,23 @@
 """
 DocScrub end-to-end smoke test.
 
-Expects a running server at http://127.0.0.1:8000.
-Exit code 0 = all tests passed, 1 = at least one failed.
+Polls /health until the server is ready, then exercises the full request
+cycle. Exit code 0 = all tests passed, 1 = at least one failed.
 
-Usage: python smoke_test.py
-       (smoke_test.bat manages server lifecycle; run via that for fresh-db tests)
+Usage: python smoke_test.py          (called by smoke_test.bat)
+       python smoke_test.py --no-shutdown  (keep server alive after tests)
 """
 
 import io
 import json
 import sys
+import time
 
 import httpx
 from docx import Document
 
 BASE = "http://127.0.0.1:8000"
+_SHUTDOWN = "--no-shutdown" not in sys.argv
 
 # PII we embed in the test document
 FIRST1, LAST1 = "Valentina", "Rosenstein"
@@ -50,6 +52,27 @@ def run(label: str, fn):
 
 
 # ---------------------------------------------------------------------------
+# Health-check polling
+# ---------------------------------------------------------------------------
+
+def _wait_for_server(timeout: int = 30) -> None:
+    """Poll GET /health until the server responds or timeout expires."""
+    print("  Waiting for server...", flush=True)
+    deadline = time.monotonic() + timeout
+    last_exc = None
+    while time.monotonic() < deadline:
+        try:
+            httpx.get(f"{BASE}/health", timeout=2).raise_for_status()
+            print("  Server ready.", flush=True)
+            return
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(1)
+    print(f"  ERROR: server did not respond within {timeout}s. Last error: {last_exc}")
+    sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
 # Document helpers
 # ---------------------------------------------------------------------------
 
@@ -75,6 +98,7 @@ def _docx_full_text(data: bytes) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    _wait_for_server()
     client = httpx.Client(base_url=BASE, timeout=120.0)
 
     roster_id: str | None = None
@@ -271,11 +295,12 @@ def main() -> None:
     # ------------------------------------------------------------------
     # H. Shutdown
     # ------------------------------------------------------------------
-    def step_h():
-        resp = client.post("/shutdown")
-        assert resp.status_code == 200, f"POST /shutdown {resp.status_code}"
+    if _SHUTDOWN:
+        def step_h():
+            resp = client.post("/shutdown")
+            assert resp.status_code == 200, f"POST /shutdown {resp.status_code}"
 
-    run("H. POST /shutdown", step_h)
+        run("H. POST /shutdown", step_h)
 
     client.close()
     _summary()
