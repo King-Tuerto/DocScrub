@@ -41,6 +41,7 @@ Rules:
 - Output ONLY the JSON array. No explanation, no markdown, no code fences.
 - Each element must be a JSON object (curly braces), NOT a nested array.
 - Return [] if no PII is found.
+- Do NOT flag single characters or lone initials as PII. A person's name must be at least 2 characters long. "S" or "P" alone are NOT valid PII findings.
 
 Example input: "John Smith works at Acme Corp. His email is john@acme.com and SSN is 123-45-6789."
 Example output: [{"text": "John Smith", "type": "PERSON", "confidence": "high"}, {"text": "Acme Corp", "type": "ORG", "confidence": "high"}, {"text": "john@acme.com", "type": "EMAIL", "confidence": "high"}, {"text": "123-45-6789", "type": "SSN", "confidence": "high"}]

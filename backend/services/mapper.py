@@ -4,8 +4,11 @@ placeholders.  Designed to be deterministic: same input always produces the
 same mapping.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +47,23 @@ def build_mapping(findings) -> MappingTable:
     Placeholders: [TYPE_N], where N is a per-type counter starting at 1.
     Input order determines counter assignment; ties broken by text value.
     """
+    # Belt-and-suspenders: skip single-character findings.  They corrupt every
+    # word in the document that contains the letter (substring match on "S"
+    # replaces "S" inside "Situation", "Suspension", etc.).  The LLM system
+    # prompt already prohibits flagging single chars; this filter is the safety
+    # net for when the model ignores the instruction.
+    safe: list = []
+    for f in (findings or []):
+        if len(f.text.strip()) < 2:
+            logger.warning(
+                "Skipping single-character PII finding %r (type=%s) — "
+                "too short to replace safely.",
+                f.text, getattr(f.type, "value", f.type),
+            )
+            continue
+        safe.append(f)
+    findings = safe
+
     if not findings:
         return MappingTable(entries=[])
 

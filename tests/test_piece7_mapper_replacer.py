@@ -339,3 +339,146 @@ class TestRoundTrip:
         from backend.services.replacer import reverse_replacements
         with pytest.raises(Exception):
             reverse_replacements("Hello [PERSON_99]", simple_mapping)
+
+
+# ---------------------------------------------------------------------------
+# Mapper — single-character filter
+# ---------------------------------------------------------------------------
+
+class TestSingleCharFilter:
+    """build_mapping must silently drop any finding whose text is 1 character."""
+
+    def _finding(self, text, pii_type="PERSON"):
+        from backend.models.schemas import PIIFinding
+        return PIIFinding(text=text, type=pii_type, confidence="high", source="llm")
+
+    def test_single_char_excluded_from_mapping(self):
+        from backend.services.mapper import build_mapping
+        table = build_mapping([self._finding("S"), self._finding("Jane Smith")])
+        originals = {e.original for e in table.entries}
+        assert "S" not in originals
+        assert "Jane Smith" in originals
+
+    def test_single_char_filter_emits_warning(self, caplog):
+        import logging
+        from backend.services.mapper import build_mapping
+        with caplog.at_level(logging.WARNING, logger="backend.services.mapper"):
+            build_mapping([self._finding("P"), self._finding("Jane Smith")])
+        msgs = " ".join(r.getMessage() for r in caplog.records).lower()
+        assert "skipping" in msgs or "single" in msgs or "short" in msgs
+
+    def test_whitespace_only_finding_excluded(self):
+        from backend.services.mapper import build_mapping
+        table = build_mapping([self._finding(" "), self._finding("Bob Jones")])
+        originals = {e.original for e in table.entries}
+        assert " " not in originals
+        assert "Bob Jones" in originals
+
+    def test_two_char_finding_is_kept(self):
+        from backend.services.mapper import build_mapping
+        table = build_mapping([self._finding("Jo")])
+        assert len(table.entries) == 1
+
+    def test_all_single_chars_produces_empty_mapping(self):
+        from backend.services.mapper import build_mapping
+        table = build_mapping([self._finding("A"), self._finding("B"), self._finding("C")])
+        assert table.entries == []
+
+    def test_empty_text_excluded(self):
+        from backend.services.mapper import build_mapping
+        table = build_mapping([self._finding(""), self._finding("Alice")])
+        originals = {e.original for e in table.entries}
+        assert "" not in originals
+        assert "Alice" in originals
+
+
+# ---------------------------------------------------------------------------
+# Replacer — word-boundary matching
+# ---------------------------------------------------------------------------
+
+class TestWordBoundaryReplacement:
+    """apply_replacements must not clobber text inside longer words."""
+
+    def _table(self, original, placeholder, pii_type="PERSON"):
+        from backend.services.mapper import MappingTable, MappingEntry
+        return MappingTable(entries=[
+            MappingEntry(original=original, placeholder=placeholder, pii_type=pii_type),
+        ])
+
+    def test_standalone_initial_is_replaced(self):
+        """A lone 'S' in the mapping must still match the standalone letter."""
+        from backend.services.replacer import apply_replacements
+        result = apply_replacements("If S and P can't agree", self._table("S", "[PERSON_1]"))
+        assert "[PERSON_1]" in result.text
+
+    def test_initial_does_not_corrupt_containing_word(self):
+        """'S' must NOT match inside 'Situation' or 'Suspension'."""
+        from backend.services.replacer import apply_replacements
+        text = "If S and P can't agree on the Situation or the Suspension."
+        result = apply_replacements(text, self._table("S", "[PERSON_1]"))
+        assert "Situation" in result.text
+        assert "Suspension" in result.text
+
+    def test_canonical_s_and_p_scenario(self):
+        """Exact reproduction of the reported bug — both letters must leave words intact."""
+        from backend.services.mapper import MappingTable, MappingEntry
+        from backend.services.replacer import apply_replacements
+        table = MappingTable(entries=[
+            MappingEntry(original="S", placeholder="[PERSON_1]", pii_type="PERSON"),
+            MappingEntry(original="P", placeholder="[PERSON_2]", pii_type="PERSON"),
+        ])
+        text = "If S and P can't agree on the Part and the Situation, we fail."
+        result = apply_replacements(text, table)
+        # standalone initials replaced
+        assert "[PERSON_1]" in result.text
+        assert "[PERSON_2]" in result.text
+        # words must survive intact
+        assert "Part" in result.text
+        assert "Situation" in result.text
+
+    def test_name_inside_longer_name_not_spuriously_matched(self):
+        """'John' must NOT match inside 'Johnson'."""
+        from backend.services.replacer import apply_replacements
+        result = apply_replacements("Johnson called.", self._table("John", "[PERSON_1]"))
+        assert "Johnson" in result.text
+        assert "[PERSON_1]" not in result.text
+
+    def test_multi_word_name_still_replaced(self):
+        """Word boundaries must not prevent normal multi-word name replacement."""
+        from backend.services.replacer import apply_replacements
+        result = apply_replacements(
+            "Dear Jane Smith, please confirm.",
+            self._table("Jane Smith", "[PERSON_1]"),
+        )
+        assert "[PERSON_1]" in result.text
+        assert "Jane Smith" not in result.text
+
+    def test_email_still_replaced(self):
+        """Emails (word chars at boundary) must still be caught."""
+        from backend.services.replacer import apply_replacements
+        result = apply_replacements(
+            "Contact jane@acme.com for details.",
+            self._table("jane@acme.com", "[EMAIL_1]", "EMAIL"),
+        )
+        assert "[EMAIL_1]" in result.text
+        assert "jane@acme.com" not in result.text
+
+    def test_phone_still_replaced(self):
+        """Phones starting with '(' (non-word char) must still match."""
+        from backend.services.replacer import apply_replacements
+        result = apply_replacements(
+            "Call (555) 123-4567 now.",
+            self._table("(555) 123-4567", "[PHONE_1]", "PHONE"),
+        )
+        assert "[PHONE_1]" in result.text
+        assert "(555) 123-4567" not in result.text
+
+    def test_ssn_still_replaced(self):
+        """SSNs with digits at both ends must still be caught."""
+        from backend.services.replacer import apply_replacements
+        result = apply_replacements(
+            "SSN: 123-45-6789.",
+            self._table("123-45-6789", "[SSN_1]", "SSN"),
+        )
+        assert "[SSN_1]" in result.text
+        assert "123-45-6789" not in result.text

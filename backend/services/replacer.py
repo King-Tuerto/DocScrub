@@ -49,8 +49,20 @@ def apply_replacements(text: str, mapping_table: MappingTable) -> ReplacementRes
     # Sort by length descending so longest match wins
     sorted_entries = sorted(mapping_table.entries, key=lambda e: len(e.original), reverse=True)
 
-    # Build a single alternation regex from all originals
-    patterns = [re.escape(e.original) for e in sorted_entries]
+    # Build a single alternation regex from all originals.
+    # Word-boundary anchors (\b) are added when the original text starts or
+    # ends with a word character so that a mapping for "S" never matches "S"
+    # inside "Situation", "Suspension", etc.  Patterns that start/end with
+    # non-word chars (phone numbers beginning with "(" for example) get no
+    # boundary on that side — the exact-character match already prevents false
+    # positives there.
+    def _bounded(original: str) -> str:
+        escaped = re.escape(original)
+        pre = r'\b' if original and re.match(r'\w', original[0]) else ''
+        suf = r'\b' if original and re.match(r'\w', original[-1]) else ''
+        return pre + escaped + suf
+
+    patterns = [_bounded(e.original) for e in sorted_entries]
     combined = re.compile("|".join(patterns))
 
     # Build lookup: original → entry
