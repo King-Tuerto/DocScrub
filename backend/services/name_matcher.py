@@ -257,14 +257,16 @@ def build_name_mapping(
     seen_redacted: set = set()
 
     for entry in roster_entries:
-        # --- Name variants → [PERSON_N] ---
-        has_name = bool((entry.first_name or "").strip() or (entry.last_name or "").strip())
-        if has_name:
-            variants = _generate_variants(entry)
+        # --- Name variants → [PERSON_N]  (or exact term if only one part present) ---
+        first = (entry.first_name or "").strip()
+        last  = (entry.last_name  or "").strip()
+        has_both = bool(first) and bool(last)
+        has_one  = bool(first) != bool(last)   # exactly one of first/last is non-empty
 
+        if has_both:
+            variants = _generate_variants(entry)
             if filter_by_text:
                 variants = [v for v in variants if _appears_in_text(v, text)]
-
             if variants:  # only assign a placeholder if something matched
                 person_counter += 1
                 placeholder = f"[PERSON_{person_counter}]"
@@ -280,6 +282,35 @@ def build_name_mapping(
                         pii_type="PERSON",
                         source="roster",
                     ))
+
+        elif has_one:
+            # Single token in first_name OR last_name with the other absent.
+            # Skip variant generation (no last name to combine with); treat as an
+            # exact-match removal term identical to also_remove → [REDACTED_N].
+            single = first or last
+            if len(single) < 2:
+                pass  # too short, skip
+            else:
+                single_lc = single.lower()
+                if single_lc not in seen_redacted:
+                    term_present = (
+                        (not filter_by_text)
+                        or _appears_in_text(single, text)
+                        or _appears_in_text(single_lc, text)
+                    )
+                    if term_present:
+                        seen_redacted.add(single_lc)
+                        redacted_counter += 1
+                        ph = f"[REDACTED_{redacted_counter}]"
+                        all_entries.append(MappingEntry(
+                            original=single, placeholder=ph,
+                            pii_type="REDACTED", source="roster",
+                        ))
+                        if single_lc != single:
+                            all_entries.append(MappingEntry(
+                                original=single_lc, placeholder=ph,
+                                pii_type="REDACTED", source="roster",
+                            ))
 
         # --- student_id → [ID_N] (exact, case-insensitive) ---
         sid = (entry.student_id or "").strip()
