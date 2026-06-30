@@ -229,6 +229,14 @@ function _canonicalOriginal(entries) {
   return (notLower || entries[0]).original;
 }
 
+// Count occurrences of a placeholder string across all file anonymized texts
+function _countPlaceholder(placeholder) {
+  const re = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+  return DS.fileResults.reduce((acc, f) => {
+    return acc + ((f.anonymized_text || '').match(re) || []).length;
+  }, 0);
+}
+
 function renderMappingTable(mapping) {
   const container = document.getElementById('mapping-table');
   if (!container) return;
@@ -257,6 +265,7 @@ function renderMappingTable(mapping) {
         <th>Placeholder</th>
         <th>Original Value</th>
         <th>Type</th>
+        <th>Count</th>
         <th>Source</th>
         <th></th>
       </tr>
@@ -270,6 +279,7 @@ function renderMappingTable(mapping) {
     const canonical = _canonicalOriginal(entries);
     const piiType  = entries[0].pii_type;
     const source   = entries[0].source || '';
+    const count    = _countPlaceholder(placeholder);
 
     const tr = document.createElement('tr');
     tr.dataset.placeholder = placeholder;
@@ -278,6 +288,7 @@ function renderMappingTable(mapping) {
       <td class="original-cell"><span class="orig-text">${escHtml(canonical)}</span>
           <input class="orig-input" type="text" value="${escHtml(canonical)}" hidden /></td>
       <td><span class="pii-badge" style="background:${PII_COLORS[piiType]||'#e2e8f0'}">${escHtml(piiType)}</span></td>
+      <td class="count-cell${count === 0 ? ' count-zero' : ''}" title="${count === 0 ? 'Not found in anonymized text' : `${count} replacement${count === 1 ? '' : 's'}`}">${count}</td>
       <td>${escHtml(source)}</td>
       <td>
         <button class="btn-edit" data-ph="${escHtml(placeholder)}">Edit</button>
@@ -343,6 +354,24 @@ document.addEventListener('DOMContentLoaded', () => {
     openSettings();
     toast('Change the model in Settings, then re-scrub', 'info');
   });
+
+  // Sync scroll between original and anonymized panels
+  const origPre = document.getElementById('text-original');
+  const anonPre = document.getElementById('text-anonymized');
+  const syncCb  = document.getElementById('sync-scroll-cb');
+  let _syncing  = false;
+
+  function _makeScrollHandler(source, target) {
+    return () => {
+      if (!syncCb?.checked || _syncing) return;
+      _syncing = true;
+      target.scrollTop = source.scrollTop;
+      _syncing = false;
+    };
+  }
+
+  origPre?.addEventListener('scroll', _makeScrollHandler(origPre, anonPre));
+  anonPre?.addEventListener('scroll', _makeScrollHandler(anonPre, origPre));
 });
 
 async function addManualPII() {

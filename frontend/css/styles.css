@@ -306,6 +306,30 @@ button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
 }
 .tab-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
 
+.review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .75rem;
+}
+.review-header h2 { margin: 0; }
+.sync-scroll-label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  user-select: none;
+}
+.sync-scroll-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
 .review-area {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -340,7 +364,7 @@ button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
   font-family: 'Courier New', monospace;
   font-size: .82rem;
   line-height: 1.6;
-  height: 380px;
+  height: 500px;
   overflow-y: auto;
 }
 .pii-mark {
@@ -394,6 +418,15 @@ button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
   vertical-align: middle;
 }
 .map-table tr:hover td { background: var(--gray-50); }
+.map-table .count-cell {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--gray-700);
+}
+.map-table .count-zero {
+  color: #dc2626;
+  font-weight: 600;
+}
 .map-table code {
   font-size: .8rem;
   color: var(--blue);
