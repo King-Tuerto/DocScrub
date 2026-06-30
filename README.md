@@ -41,11 +41,13 @@ DocScrub is a local-first document anonymizer for Windows. It strips personally 
 
 | Step | Screen | What you do |
 |---|---|---|
-| 1 | **Upload** | Drag PDF / DOCX files into the drop zone |
-| 2 | **Image Review** | Uncheck charts and diagrams you want to keep; choose anonymization tier |
+| 1 | **Upload** | Choose your anonymization tier, load a name list (Tiers 1 & 2), drag in your PDF / DOCX files |
+| 2 | **Image Review** | Decide which embedded images to keep or strip — click any thumbnail to open a full-size preview and inspect it for PII before deciding; arrow keys navigate between images |
 | 3 | **Processing** | DocScrub scrubs PII — watch the live progress |
 | 4 | **Review** | See a side-by-side diff; edit or delete mapping entries if needed |
 | 5 | **Export** | Download clean files and a mapping JSON for later re-identification |
+
+A tab bar at the top (**Upload · Review · Export · Re-identify**) lets you move freely between screens without losing state. Review and Export tabs activate once scrubbing is complete. Clicking the **DocScrub** logo starts a new job.
 
 ---
 
@@ -128,9 +130,10 @@ Click **Upload name list** on the upload screen to add a new name list. Name lis
 
 To restore original content from anonymized files:
 
-1. Go to the **Re-identify** screen (link in the export screen)
-2. Upload your anonymized files and the mapping JSON you downloaded
-3. Click **Restore** — original values are written back
+1. Click the **Re-identify** tab in the navigation bar (accessible at any time)
+2. Paste your Job ID (found in the mapping filename: `mapping_<job-id>.json`), or drop the mapping file and it fills in automatically
+3. Drop your anonymized files and the mapping JSON
+4. Click **Restore Documents** — original values are written back
 
 The mapping JSON stays on your machine. Guard it like the original document.
 
