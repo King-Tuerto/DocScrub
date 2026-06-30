@@ -105,6 +105,71 @@ async function uploadFiles() {
 }
 
 // ---------------------------------------------------------------------------
+// Lightbox
+// ---------------------------------------------------------------------------
+
+let _lbImages = [];
+let _lbIdx = 0;
+
+function openLightbox(idx) {
+  _lbIdx = idx;
+  _updateLightbox();
+  document.getElementById('lightbox').hidden = false;
+  document.addEventListener('keydown', _lbKeyHandler);
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').hidden = true;
+  document.removeEventListener('keydown', _lbKeyHandler);
+}
+
+function _lbKeyHandler(e) {
+  if (e.key === 'Escape')      { closeLightbox(); }
+  else if (e.key === 'ArrowLeft')  { _lbNavigate(-1); }
+  else if (e.key === 'ArrowRight') { _lbNavigate(1); }
+}
+
+function _lbNavigate(delta) {
+  const next = _lbIdx + delta;
+  if (next < 0 || next >= _lbImages.length) return;
+  _lbIdx = next;
+  _updateLightbox();
+}
+
+function _updateLightbox() {
+  const img = _lbImages[_lbIdx];
+  const lbImg = document.getElementById('lb-img');
+  lbImg.src = `data:image/png;base64,${img.b64}`;
+  lbImg.alt = `Image ${_lbIdx + 1}`;
+
+  const cb = document.querySelector(`.thumb-check[data-idx="${_lbIdx}"]`);
+  const stripping = cb ? cb.checked : true;
+
+  document.getElementById('lb-caption').textContent =
+    `Page ${img.page ?? '?'}, image ${_lbIdx + 1}`;
+  document.getElementById('lb-count').textContent =
+    `${_lbIdx + 1} / ${_lbImages.length}`;
+
+  _syncLbToggle(stripping);
+
+  document.getElementById('lb-prev').disabled = (_lbIdx === 0);
+  document.getElementById('lb-next').disabled = (_lbIdx === _lbImages.length - 1);
+}
+
+function _syncLbToggle(stripping) {
+  const btn = document.getElementById('lb-toggle');
+  if (stripping) {
+    btn.textContent = '✕ Strip';
+    btn.className = 'lb-toggle stripping';
+    btn.title = 'This image will be removed — click to keep it';
+  } else {
+    btn.textContent = '✓ Keep';
+    btn.className = 'lb-toggle keeping';
+    btn.title = 'This image will be kept — click to strip it';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Image review screen
 // ---------------------------------------------------------------------------
 
@@ -131,6 +196,8 @@ function renderImageGrid(images) {
     return;
   }
 
+  _lbImages = images;   // make available to lightbox
+
   grid.innerHTML = '';
   images.forEach((img, i) => {
     const item = document.createElement('div');
@@ -140,10 +207,16 @@ function renderImageGrid(images) {
       <label class="thumb-label">
         <input type="checkbox" class="thumb-check" data-idx="${i}" checked />
         <img src="data:image/png;base64,${img.b64}" alt="Image ${i + 1}"
-             class="thumb-img" />
+             class="thumb-img" title="Click to preview full size" />
         <span class="thumb-caption">Page ${img.page ?? '?'}, img ${i + 1}</span>
       </label>
     `;
+    // Intercept click on the thumbnail image to open lightbox
+    // (stopPropagation prevents the parent <label> from toggling the checkbox)
+    item.querySelector('.thumb-img').addEventListener('click', e => {
+      e.stopPropagation();
+      openLightbox(i);
+    });
     grid.appendChild(item);
   });
 }
@@ -386,6 +459,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // Select-all toggles
   selAll?.addEventListener('click', () => setAllChecked(true));
   deselAll?.addEventListener('click', () => setAllChecked(false));
+
+  // Lightbox
+  document.getElementById('lightbox')?.addEventListener('click', e => {
+    if (!e.target.closest('.lightbox-panel')) closeLightbox();
+  });
+  document.getElementById('lb-close')?.addEventListener('click', closeLightbox);
+  document.getElementById('lb-prev')?.addEventListener('click', () => _lbNavigate(-1));
+  document.getElementById('lb-next')?.addEventListener('click', () => _lbNavigate(1));
+  document.getElementById('lb-toggle')?.addEventListener('click', () => {
+    const cb = document.querySelector(`.thumb-check[data-idx="${_lbIdx}"]`);
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    _syncLbToggle(cb.checked);
+  });
 
   // Pre-load roster list (silent — backend may not be running yet)
   loadRosters();
