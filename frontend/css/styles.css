@@ -47,6 +47,45 @@ h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: .75rem; }
 h3 { font-size: 1rem;    font-weight: 600; margin-bottom: .5rem; }
 
 /* =========================================================================
+   Site nav — persistent top bar
+   ========================================================================= */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.site-nav-logo {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--teal);
+  text-decoration: none;
+  letter-spacing: -.01em;
+}
+.site-nav-logo:hover { color: var(--teal-dk); }
+.site-nav-link {
+  font-size: .825rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  text-decoration: none;
+  padding: .3rem .75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  transition: background .15s, border-color .15s, color .15s;
+}
+.site-nav-link:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+  color: var(--gray-900);
+}
+
+/* =========================================================================
    Layout shell
    ========================================================================= */
 .screen {
@@ -384,6 +423,29 @@ button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
 /* =========================================================================
    Re-identify screen
    ========================================================================= */
+.reid-intro { color: var(--gray-600); margin-bottom: 1.25rem; }
+.reid-field { margin-bottom: 1.25rem; }
+.reid-field label {
+  display: block;
+  font-weight: 600;
+  font-size: .88rem;
+  color: var(--gray-700);
+  margin-bottom: .3rem;
+}
+.reid-field input[type="text"] {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  background: #fff;
+  transition: border-color .15s;
+}
+.reid-field input[type="text"]:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-lt);
+}
 #reidentify .drop-zone { margin-bottom: .75rem; }
 
 /* =========================================================================

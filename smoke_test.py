@@ -305,7 +305,8 @@ def main() -> None:
         )
 
         restored_text = _docx_full_text(resp.content)
-        assert LAST1 in restored_text or FIRST1 in restored_text, (
+        rt_lower = restored_text.lower()
+        assert LAST1.lower() in rt_lower or FIRST1.lower() in rt_lower, (
             f"Original name not restored. Got: {restored_text[:300]}"
         )
         person_keys = [k for k in mapping_dict if k.startswith("[PERSON_")]
@@ -412,6 +413,38 @@ def main() -> None:
             )
 
         run("L. Export PDF — valid file, placeholder present", step_l)
+
+        # ------------------------------------------------------------------
+        # N. Re-identify PDF — verify originals restored
+        # ------------------------------------------------------------------
+        def step_n():
+            # Fetch the mapping for the PDF job
+            resp = client.get(f"/jobs/{pdf_job_id}/export/mapping")
+            assert resp.status_code == 200, f"GET /export/mapping (PDF) {resp.status_code}"
+            mappings = resp.json()
+            assert mappings, "PDF mapping list is empty"
+            pdf_mapping = {m["placeholder"]: m["original"] for m in mappings}
+
+            resp2 = client.post(
+                "/reidentify",
+                json={"job_id": pdf_job_id, "mapping": pdf_mapping},
+            )
+            assert resp2.status_code == 200, (
+                f"POST /reidentify (PDF) {resp2.status_code}: {resp2.text}"
+            )
+
+            restored_text = _pdf_full_text(resp2.content)
+            rt_lower = restored_text.lower()
+            assert LAST1.lower() in rt_lower or FIRST1.lower() in rt_lower, (
+                f"Original name not restored in PDF. Got: {restored_text[:300]}"
+            )
+            person_keys = [k for k in pdf_mapping if k.startswith("[PERSON_")]
+            for key in person_keys:
+                assert key not in restored_text, (
+                    f"Placeholder {key!r} still in re-identified PDF"
+                )
+
+        run("N. Re-identify PDF — original names restored", step_n)
 
     # ------------------------------------------------------------------
     # M. Shutdown

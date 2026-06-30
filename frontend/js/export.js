@@ -113,7 +113,9 @@ function renderReidDropZone(zoneId, labelText, onDrop) {
 
 async function doReidentify() {
   if (!reidMapping) { toast('Drop a mapping JSON file first', 'warn'); return; }
-  if (!DS.jobId)    { toast('No active job — paste the Job ID', 'warn'); return; }
+
+  const jobId = document.getElementById('reid-job-id')?.value?.trim() || DS.jobId;
+  if (!jobId) { toast('Enter the Job ID from your mapping filename', 'warn'); return; }
 
   // Convert list format [{placeholder, original, ...}] → {placeholder: original} dict
   const mapping = {};
@@ -126,10 +128,10 @@ async function doReidentify() {
   }
 
   try {
-    const { blob, headers } = await API.postBlob('/reidentify', { job_id: DS.jobId, mapping });
+    const { blob, headers } = await API.postBlob('/reidentify', { job_id: jobId, mapping });
     const cd = headers.get('content-disposition') || '';
     const match = cd.match(/filename="?([^"]+)"?/);
-    const filename = match ? match[1] : `restored_${DS.jobId}.bin`;
+    const filename = match ? match[1] : `restored_${jobId}.bin`;
     triggerDownload(blob, filename);
     toast('Documents restored — download started', 'success');
   } catch (err) {
@@ -156,27 +158,52 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', downloadMapping);
   });
 
-  // New job
+  // New job (export screen button)
   document.getElementById('btn-new-job')?.addEventListener('click', newJob);
+
+  // Start Over (review screen button)
+  document.getElementById('btn-start-over')?.addEventListener('click', newJob);
+
+  // Back from re-identify → upload
+  document.getElementById('btn-reid-back')?.addEventListener('click', () => showScreen('screen-upload'));
+
+  // Site nav: logo → new job, re-identify link → reid screen
+  document.getElementById('nav-home')?.addEventListener('click', e => {
+    e.preventDefault();
+    newJob();
+  });
+  document.getElementById('nav-reidentify')?.addEventListener('click', e => {
+    e.preventDefault();
+    // Pre-fill job ID if there's an active job
+    const inp = document.getElementById('reid-job-id');
+    if (inp && DS.jobId) inp.value = DS.jobId;
+    showScreen('reidentify');
+  });
 
   // Re-identify drop zones
   renderReidDropZone('reid-drop-zone', 'Drop anonymized files here', files => {
     reidFiles = Array.from(files);
     const zone = document.getElementById('reid-drop-zone');
-    if (zone) zone.querySelector('p').textContent =
+    if (zone) zone.querySelector('.drop-zone-main').textContent =
       `${reidFiles.length} file${reidFiles.length !== 1 ? 's' : ''} ready`;
   });
 
   renderReidDropZone('reid-mapping-drop', 'Drop mapping JSON here', files => {
     const file = files[0];
     if (!file) return;
+    // Try to extract job ID from filename: mapping_<job-id>.json
+    const m = file.name.match(/^mapping_(.+)\.json$/i);
+    if (m) {
+      const inp = document.getElementById('reid-job-id');
+      if (inp && !inp.value) inp.value = m[1];
+    }
     const reader = new FileReader();
     reader.onload = e => {
       try {
         reidMapping = JSON.parse(e.target.result);
         const count = Array.isArray(reidMapping) ? reidMapping.length : Object.keys(reidMapping).length;
         const zone = document.getElementById('reid-mapping-drop');
-        if (zone) zone.querySelector('p').textContent = `Mapping loaded: ${count} entries`;
+        if (zone) zone.querySelector('.drop-zone-main').textContent = `Mapping loaded: ${count} entries`;
         toast('Mapping file loaded', 'success');
       } catch {
         toast('Invalid JSON mapping file', 'error');
@@ -187,9 +214,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Restore button
   document.getElementById('btn-restore')?.addEventListener('click', doReidentify);
-
-  // Nav: re-identify link from export screen
-  document.querySelector('[data-action="reidentify"]')?.addEventListener('click', () => {
-    showScreen('reidentify');
-  });
 });

@@ -9,6 +9,14 @@
 <body>
 
 <!-- ===================================================================
+     SITE NAV — persistent across all screens
+     =================================================================== -->
+<nav class="site-nav" id="site-nav">
+  <a href="#" id="nav-home" class="site-nav-logo">DocScrub</a>
+  <a href="#" id="nav-reidentify" class="site-nav-link">Re-identify ↩</a>
+</nav>
+
+<!-- ===================================================================
      SCREEN 1 — Home / Upload
      =================================================================== -->
 <section id="screen-upload" class="screen active">
@@ -190,6 +198,7 @@
   <div class="actions">
     <button id="btn-export" data-action="export">Export →</button>
     <button id="btn-rerun">Re-run with different model</button>
+    <button id="btn-start-over" class="btn-secondary">← Start Over</button>
   </div>
 </section>
 
@@ -221,18 +230,29 @@
      =================================================================== -->
 <section id="reidentify" class="screen re-identify" hidden>
   <h2>Re-identify Documents</h2>
-  <p>Upload your anonymized files and the mapping JSON to restore original content.</p>
+  <p class="reid-intro">Swap placeholders back to originals. You need the anonymized file(s) and the mapping JSON you downloaded during export.</p>
+
+  <div class="reid-field">
+    <label for="reid-job-id">Job ID</label>
+    <input id="reid-job-id" type="text" placeholder="Paste the Job ID from your mapping filename, e.g. a3f8c21b-…" />
+    <p class="section-hint">Found in the mapping filename: <code>mapping_&lt;job-id&gt;.json</code></p>
+  </div>
 
   <div id="reid-drop-zone" class="drop-zone">
-    <p>Drop anonymized files here</p>
+    <div class="drop-zone-icon">📄</div>
+    <p class="drop-zone-main">Drop anonymized file(s) here</p>
+    <p class="drop-zone-sub">or <span class="file-label">browse files</span></p>
   </div>
 
   <div id="reid-mapping-drop" class="drop-zone">
-    <p>Drop mapping JSON here (or select from history below)</p>
+    <div class="drop-zone-icon">🗂</div>
+    <p class="drop-zone-main">Drop mapping JSON here</p>
+    <p class="drop-zone-sub">or <span class="file-label">browse file</span></p>
   </div>
 
   <div class="actions">
-    <button id="btn-restore" data-action="restore">Restore</button>
+    <button id="btn-restore" data-action="restore">Restore Documents</button>
+    <button id="btn-reid-back" class="btn-secondary">← Back to Upload</button>
   </div>
 </section>
 
