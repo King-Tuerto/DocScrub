@@ -319,15 +319,12 @@ function startEditEntry(placeholder) {
     if (!newVal) return;
     try {
       await API.patch(`/jobs/${DS.jobId}/mapping/${encodeURIComponent(placeholder)}`, { original: newVal });
-      span.textContent = newVal;
-      input.value = newVal;
-      span.hidden = false;
-      input.hidden = true;
-      btn.textContent = 'Edit';
-      btn.onclick = () => startEditEntry(placeholder);
-      // Update local state
-      const entry = DS.mapping.find(e => e.placeholder === placeholder);
-      if (entry) entry.original = newVal;
+      // Re-fetch review so anonymized text reflects the updated original value
+      const data = await API.get(`/jobs/${DS.jobId}/review`);
+      DS.fileResults = data.files || [];
+      DS.mapping     = data.mapping || [];
+      renderDiffView(DS.fileResults);
+      renderMappingTable(DS.mapping);
       toast('Mapping updated', 'success');
     } catch (err) {
       toast(`Save failed: ${err.message}`, 'error');
@@ -358,13 +355,11 @@ async function addManualPII() {
       text: val.trim(),
       pii_type: type.trim().toUpperCase(),
     });
-    DS.mapping.push({
-      id: entry.id,
-      original: entry.original,
-      placeholder: entry.placeholder,
-      pii_type: entry.pii_type,
-      source: entry.source,
-    });
+    // Re-fetch review so anonymized text reflects the new entry
+    const data = await API.get(`/jobs/${DS.jobId}/review`);
+    DS.fileResults = data.files || [];
+    DS.mapping     = data.mapping || [];
+    renderDiffView(DS.fileResults);
     renderMappingTable(DS.mapping);
     toast(`Added ${entry.placeholder} for "${entry.original}"`, 'success');
   } catch (err) {
