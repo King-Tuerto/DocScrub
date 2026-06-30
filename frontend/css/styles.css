@@ -69,20 +69,34 @@ h3 { font-size: 1rem;    font-weight: 600; margin-bottom: .5rem; }
   letter-spacing: -.01em;
 }
 .site-nav-logo:hover { color: var(--teal-dk); }
-.site-nav-link {
-  font-size: .825rem;
-  font-weight: 600;
-  color: var(--gray-600);
-  text-decoration: none;
-  padding: .3rem .75rem;
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius);
-  transition: background .15s, border-color .15s, color .15s;
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: .1rem;
 }
-.site-nav-link:hover {
+.nav-tab {
+  font-size: .825rem;
+  font-weight: 500;
+  color: var(--gray-500);
+  text-decoration: none;
+  padding: .35rem .65rem;
+  border-radius: var(--radius);
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.nav-tab:hover:not(.nav-tab-disabled) {
   background: var(--gray-100);
-  border-color: var(--gray-400);
   color: var(--gray-900);
+}
+.nav-tab.active {
+  color: var(--teal);
+  background: var(--teal-bg);
+  font-weight: 600;
+}
+.nav-tab.nav-tab-disabled {
+  color: var(--gray-300);
+  cursor: default;
+  pointer-events: none;
 }
 
 /* =========================================================================

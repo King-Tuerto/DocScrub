@@ -13,7 +13,12 @@
      =================================================================== -->
 <nav class="site-nav" id="site-nav">
   <a href="#" id="nav-home" class="site-nav-logo">DocScrub</a>
-  <a href="#" id="nav-reidentify" class="site-nav-link">Re-identify ↩</a>
+  <div class="nav-tabs">
+    <a href="#" class="nav-tab" data-screen="screen-upload">Upload</a>
+    <a href="#" class="nav-tab nav-tab-job" data-screen="screen-review">Review</a>
+    <a href="#" class="nav-tab nav-tab-job" data-screen="screen-export">Export</a>
+    <a href="#" class="nav-tab" data-screen="reidentify">Re-identify</a>
+  </div>
 </nav>
 
 <!-- ===================================================================
@@ -198,7 +203,6 @@
   <div class="actions">
     <button id="btn-export" data-action="export">Export →</button>
     <button id="btn-rerun">Re-run with different model</button>
-    <button id="btn-start-over" class="btn-secondary">← Start Over</button>
   </div>
 </section>
 
@@ -252,7 +256,6 @@
 
   <div class="actions">
     <button id="btn-restore" data-action="restore">Restore Documents</button>
-    <button id="btn-reid-back" class="btn-secondary">← Back to Upload</button>
   </div>
 </section>
 

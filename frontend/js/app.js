@@ -12,6 +12,7 @@
 
 window.DS = {
   jobId: null,
+  scrubDone: false,   // true once anonymize completes; gates Review/Export tabs
   files: [],          // [{filename, size_bytes, file_type}]
   mapping: [],        // [{id, original, placeholder, pii_type, source}]
   fileResults: [],    // [{filename, original_text, anonymized_text, positions}]
@@ -41,7 +42,17 @@ function showScreen(id) {
     const el = document.getElementById(sid);
     if (el) el.hidden = (sid !== id);
   });
+  // Highlight the matching nav tab (if any)
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.nav-tab[data-screen="${id}"]`)?.classList.add('active');
   window.scrollTo(0, 0);
+}
+
+function updateNavTabs() {
+  const enabled = DS.scrubDone;
+  document.querySelectorAll('.nav-tab-job').forEach(t => {
+    t.classList.toggle('nav-tab-disabled', !enabled);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +187,28 @@ function saveSettings() {
 
 document.addEventListener('DOMContentLoaded', () => {
   showScreen('screen-upload');
+  updateNavTabs();   // start with Review/Export disabled
+
+  // Nav: logo resets, tabs navigate
+  document.getElementById('nav-home')?.addEventListener('click', e => {
+    e.preventDefault();
+    window.newJob?.();  // defined in export.js
+  });
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', e => {
+      e.preventDefault();
+      if (tab.classList.contains('nav-tab-disabled')) return;
+      const screen = tab.dataset.screen;
+      if (screen === 'reidentify') {
+        const inp = document.getElementById('reid-job-id');
+        if (inp && DS.jobId) inp.value = DS.jobId;
+      }
+      if (screen === 'screen-export' && DS.scrubDone) {
+        window.populateSummary?.();
+      }
+      showScreen(screen);
+    });
+  });
 
   document.getElementById('settings-btn')
     ?.addEventListener('click', openSettings);
@@ -193,5 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Expose for other modules
 window.showScreen = showScreen;
+window.updateNavTabs = updateNavTabs;
 window.API = API;
 window.toast = toast;

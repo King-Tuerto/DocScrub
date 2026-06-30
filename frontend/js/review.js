@@ -129,6 +129,8 @@ async function loadReview(jobId) {
 
   renderDiffView(DS.fileResults);
   renderMappingTable(DS.mapping);
+  DS.scrubDone = true;
+  window.updateNavTabs?.();
   showScreen('screen-review');
 }
 

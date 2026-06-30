@@ -68,6 +68,7 @@ function triggerDownload(blob, filename) {
 
 function newJob() {
   DS.jobId = null;
+  DS.scrubDone = false;
   DS.files = [];
   DS.mapping = [];
   DS.fileResults = [];
@@ -82,8 +83,12 @@ function newJob() {
   document.getElementById('text-anonymized').innerHTML = '';
   document.querySelector('.file-tabs')?.remove();
 
+  window.updateNavTabs?.();
   showScreen('screen-upload');
 }
+
+window.newJob = newJob;
+window.populateSummary = populateSummary;
 
 // ---------------------------------------------------------------------------
 // Re-identify screen
@@ -160,25 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // New job (export screen button)
   document.getElementById('btn-new-job')?.addEventListener('click', newJob);
-
-  // Start Over (review screen button)
-  document.getElementById('btn-start-over')?.addEventListener('click', newJob);
-
-  // Back from re-identify → upload
-  document.getElementById('btn-reid-back')?.addEventListener('click', () => showScreen('screen-upload'));
-
-  // Site nav: logo → new job, re-identify link → reid screen
-  document.getElementById('nav-home')?.addEventListener('click', e => {
-    e.preventDefault();
-    newJob();
-  });
-  document.getElementById('nav-reidentify')?.addEventListener('click', e => {
-    e.preventDefault();
-    // Pre-fill job ID if there's an active job
-    const inp = document.getElementById('reid-job-id');
-    if (inp && DS.jobId) inp.value = DS.jobId;
-    showScreen('reidentify');
-  });
 
   // Re-identify drop zones
   renderReidDropZone('reid-drop-zone', 'Drop anonymized files here', files => {
