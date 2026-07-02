@@ -121,6 +121,77 @@
   <div class="actions">
     <button id="btn-next" data-action="next" disabled>Continue →</button>
   </div>
+
+  <div class="discover-entrypoint">
+    <span class="discover-divider">or</span>
+    <button id="btn-discover-mode" class="btn-discover-entry">🔍 Build a name list from a document</button>
+  </div>
+</section>
+
+<!-- ===================================================================
+     SCREEN 7 — Name Discovery
+     =================================================================== -->
+<section id="screen-discover" class="screen" hidden>
+  <h2>Build a Name List</h2>
+  <p class="subtitle">Scan a document to discover PII, review the findings, and save as a reusable name list.</p>
+
+  <!-- Phase 1: Upload + method picker -->
+  <div id="discover-upload-phase">
+    <div id="discover-drop" class="drop-zone" role="region" aria-label="Discovery file drop zone">
+      <div class="drop-zone-icon">📄</div>
+      <p class="drop-zone-main">Drop a PDF or Word file here to scan</p>
+      <p class="drop-zone-sub">or <label for="discover-file-input" class="file-label">browse</label></p>
+      <input id="discover-file-input" type="file" accept=".pdf,.docx" hidden />
+    </div>
+    <p id="discover-file-name" class="section-hint discover-file-name" hidden></p>
+
+    <div class="discover-method-group">
+      <p class="section-heading">Detection method</p>
+      <label class="discover-method-option">
+        <input type="radio" name="discover-method" value="quick" checked />
+        <div>
+          <strong>Quick scan</strong>
+          <span class="tier-tag tier-tag-no-ai">No AI required</span>
+          <p>Finds emails, phone numbers, SSNs, and other pattern-based PII using regular expressions.</p>
+        </div>
+      </label>
+      <label class="discover-method-option">
+        <input type="radio" name="discover-method" value="deep" />
+        <div>
+          <strong>Deep scan</strong>
+          <span class="tier-tag tier-tag-ai">Requires Ollama</span>
+          <p>Also finds names, organizations, and addresses using AI detection. May take a few minutes for large documents.</p>
+        </div>
+      </label>
+    </div>
+
+    <div class="actions">
+      <button id="btn-discover-scan" disabled>Scan Document</button>
+      <button id="btn-discover-cancel" class="btn-secondary">← Back to Upload</button>
+    </div>
+  </div>
+
+  <!-- Phase 2: Scanning spinner -->
+  <div id="discover-scanning-phase" hidden>
+    <p class="loading-msg discover-scanning-msg">Scanning document for PII…</p>
+  </div>
+
+  <!-- Phase 3: Results table -->
+  <div id="discover-results-phase" hidden>
+    <div class="discover-results-header">
+      <p id="discover-summary" class="section-hint"></p>
+      <div class="discover-results-controls">
+        <button id="btn-disc-select-all" class="btn-secondary btn-sm">Select All</button>
+        <button id="btn-disc-deselect-all" class="btn-secondary btn-sm">Deselect All</button>
+      </div>
+    </div>
+    <div id="discover-table-wrap" class="discover-table-wrap"></div>
+    <div class="actions">
+      <button id="btn-disc-save">Save as Name List</button>
+      <button id="btn-disc-csv" class="btn-secondary">⬇ Download CSV</button>
+      <button id="btn-disc-rescan" class="btn-secondary">← Scan Another</button>
+    </div>
+  </div>
 </section>
 
 <!-- ===================================================================
@@ -291,6 +362,7 @@
 <script src="/js/upload.js"></script>
 <script src="/js/review.js"></script>
 <script src="/js/export.js"></script>
+<script src="/js/discover.js"></script>
 
 <footer class="app-footer">
   <button id="btn-end-session" class="end-session-btn" title="Stop the DocScrub server and end this session">End Session</button>

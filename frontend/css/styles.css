@@ -1002,3 +1002,120 @@ button.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
   border-color: #134e4a;
 }
 .lb-toggle:hover { opacity: .82; }
+
+/* =========================================================================
+   Name Discovery screen
+   ========================================================================= */
+
+/* Entry point button at the bottom of the upload screen */
+.discover-entrypoint {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--gray-200);
+}
+.discover-divider {
+  color: var(--gray-400);
+  font-size: .85rem;
+  white-space: nowrap;
+}
+.btn-discover-entry {
+  background: none;
+  border: 1.5px solid var(--gray-300);
+  color: var(--gray-600);
+  font-size: .875rem;
+  font-weight: 500;
+  padding: .5rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  box-shadow: none;
+}
+.btn-discover-entry:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: var(--teal-bg);
+}
+
+/* File name confirmation under drop zone */
+.discover-file-name { margin-top: .5rem; font-weight: 500; color: var(--gray-700); }
+
+/* Method picker */
+.discover-method-group { margin: 1.25rem 0; }
+.discover-method-option {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .875rem 1rem;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: .5rem;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.discover-method-option:has(input:checked) {
+  border-color: var(--teal);
+  background: var(--teal-bg);
+}
+.discover-method-option input[type="radio"] {
+  margin-top: .25rem;
+  accent-color: var(--teal);
+  flex-shrink: 0;
+}
+.discover-method-option strong {
+  display: inline-block;
+  font-size: .9rem;
+  margin-bottom: .2rem;
+  margin-right: .5rem;
+}
+.discover-method-option p {
+  font-size: .82rem;
+  color: var(--gray-500);
+  margin: .25rem 0 0;
+}
+
+/* Scanning state */
+.discover-scanning-msg {
+  text-align: center;
+  padding: 3rem 0;
+  font-size: 1.1rem;
+  color: var(--gray-500);
+}
+
+/* Results header */
+.discover-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+.discover-results-controls { display: flex; gap: .4rem; }
+.btn-sm {
+  font-size: .78rem;
+  padding: .3rem .75rem;
+}
+
+/* Results table wrapper */
+.discover-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+}
+.disc-table { width: 100%; }
+.disc-table .disc-text {
+  font-family: 'Courier New', monospace;
+  font-size: .82rem;
+  word-break: break-all;
+}
+.disc-table .disc-confidence,
+.disc-table .disc-source {
+  font-size: .78rem;
+  color: var(--gray-400);
+  white-space: nowrap;
+}
+.disc-table input[type="checkbox"] { accent-color: var(--teal); }

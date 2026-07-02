@@ -447,6 +447,97 @@ def main() -> None:
         run("N. Re-identify PDF — original names restored", step_n)
 
     # ------------------------------------------------------------------
+    # O. Discover — quick scan of a DOCX returns known PII findings
+    # ------------------------------------------------------------------
+    discover_findings: list | None = None
+
+    def step_o():
+        nonlocal discover_findings
+        docx_bytes = _make_docx_bytes()
+        resp = client.post(
+            "/discover",
+            files={
+                "file": (
+                    "discover_test.docx",
+                    docx_bytes,
+                    "application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document",
+                )
+            },
+            data={"method": "quick"},
+        )
+        assert resp.status_code == 200, f"POST /discover {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert "findings" in data, "No 'findings' key in /discover response"
+        assert isinstance(data["findings"], list), "findings is not a list"
+        assert "warnings" in data, "No 'warnings' key in /discover response"
+        assert "job_id" not in data, "/discover must not return a job_id (must be stateless)"
+        discover_findings = data["findings"]
+
+    run("O. Discover — quick scan of DOCX (stateless)", step_o)
+
+    # ------------------------------------------------------------------
+    # P. Discover — verify findings contain expected PII + CSV format
+    # ------------------------------------------------------------------
+    def step_p():
+        assert discover_findings is not None, "No findings from step O"
+        pii_types = {f["pii_type"] for f in discover_findings}
+        texts = {f["text"] for f in discover_findings}
+
+        assert "EMAIL" in pii_types, (
+            f"EMAIL not found in discovered types. Found: {pii_types}"
+        )
+        assert DOCX_EMAIL in texts, (
+            f"Email {DOCX_EMAIL!r} not found in findings. Texts: {list(texts)[:10]}"
+        )
+        assert "PHONE" in pii_types, (
+            f"PHONE not found in discovered types. Found: {pii_types}"
+        )
+        assert any(DOCX_PHONE in t for t in texts), (
+            f"Phone {DOCX_PHONE!r} not found in findings. Texts: {list(texts)[:10]}"
+        )
+
+        # Verify each finding has the required schema fields
+        for f in discover_findings:
+            for field in ("text", "pii_type", "confidence", "source"):
+                assert field in f, f"Finding missing field {field!r}: {f}"
+
+        # Verify CSV column assignment logic for email and phone findings
+        import csv, io as _io
+        rows_out = [["first_name", "last_name", "email", "also_remove"]]
+        for f in discover_findings:
+            row = ["", "", "", ""]
+            if f["pii_type"] == "EMAIL":
+                row[2] = f["text"]
+            elif f["pii_type"] == "PERSON":
+                parts = f["text"].split(" ", 1)
+                row[0] = parts[0]
+                row[1] = parts[1] if len(parts) > 1 else ""
+            else:
+                row[3] = f["text"]
+            rows_out.append(row)
+
+        buf = _io.StringIO()
+        csv.writer(buf, lineterminator="\r\n").writerows(rows_out)
+        csv_text = buf.getvalue()
+
+        assert DOCX_EMAIL in csv_text, (
+            f"Email not in generated CSV.\nCSV:\n{csv_text[:400]}"
+        )
+        assert "first_name,last_name,email,also_remove" in csv_text, (
+            "CSV header row missing or malformed"
+        )
+        # Email must appear in the third column (email), not also_remove
+        for line in csv_text.splitlines():
+            if DOCX_EMAIL in line:
+                cols = line.split(",")
+                assert cols[2] == DOCX_EMAIL, (
+                    f"Email should be in column index 2 (email), got: {cols}"
+                )
+
+    run("P. Discover — findings contain email + phone; CSV format correct", step_p)
+
+    # ------------------------------------------------------------------
     # M. Shutdown
     # ------------------------------------------------------------------
     if _SHUTDOWN:

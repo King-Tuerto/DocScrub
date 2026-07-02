@@ -35,6 +35,7 @@ const SCREENS = [
   'screen-review',
   'screen-export',
   'reidentify',
+  'screen-discover',
 ];
 
 function showScreen(id) {

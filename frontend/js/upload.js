@@ -477,3 +477,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Pre-load roster list (silent — backend may not be running yet)
   loadRosters();
 });
+
+// Expose for discover.js (refresh roster dropdown after saving a discovered name list)
+window.loadRosters = loadRosters;
